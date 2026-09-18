@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 建立服务端本地会话。
@@ -44,6 +45,7 @@ public class LocalSessionEstablisher {
      *
      * @param user 账号视图
      * @param workspace 会话绑定的工作区；本地自有账号传 null
+     * @param platformUserId 平台用户标识；本地自有账号传 null
      * @param membershipRevision 平台成员授权修订号；本地自有账号传 0
      * @param expiresAt 会话绝对过期时间
      * @param request 当前请求
@@ -52,6 +54,7 @@ public class LocalSessionEstablisher {
     public void establish(
             AdminUserView user,
             WorkspaceView workspace,
+            UUID platformUserId,
             long membershipRevision,
             Instant expiresAt,
             HttpServletRequest request,
@@ -59,6 +62,7 @@ public class LocalSessionEstablisher {
     ) {
         AdminSessionPrincipal principal = new AdminSessionPrincipal(
                 user.id(),
+                platformUserId,
                 workspace == null ? null : workspace.id(),
                 workspace == null ? null : workspace.platformAccountId(),
                 workspace == null ? null : workspace.platformAppInstanceId(),

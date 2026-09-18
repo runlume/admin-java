@@ -86,10 +86,9 @@ admin:
     connect-timeout: ${ADMIN_PLATFORM_CONNECT_TIMEOUT:5s}
     request-timeout: ${ADMIN_PLATFORM_REQUEST_TIMEOUT:5s}
 
-# 平台集成 Starter：SDK 组件（运行时客户端、令牌、探针、关联标识）由 starter 自动装配，
-# 本模板不再手写这部分装配代码。
-# session-validation 暂时关闭：本模板仍使用自己的工作区复验与会话校验过滤器；
-# 完整切换需要把 platformUserId 放进会话主体，供 starter 的会话边界使用。
+# 平台集成 Starter：SDK 组件（运行时客户端、令牌、探针、关联标识）与会话有效性管线由 starter
+# 自动装配；本模板通过 access.identity.infrastructure.PlatformSessionAdapters 提供会话边界与
+# 工作区读取两个 SPI。平台关闭时没有平台会话，管线随之关闭。
 platform:
   integration:
     enabled: ${ADMIN_PLATFORM_ENABLED:false}
@@ -103,7 +102,7 @@ platform:
     service-client-secret: ${ADMIN_PLATFORM_SERVICE_CLIENT_SECRET:}
     service-audience: ${ADMIN_PLATFORM_SERVICE_AUDIENCE:platform-integration-api}
     session-validation:
-      enabled: false
+      enabled: ${ADMIN_PLATFORM_ENABLED:false}
 
 logging:
   level:

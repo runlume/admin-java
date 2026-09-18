@@ -4,7 +4,7 @@ spring-modulith = "2.1.0"
 # platform-integration-sdk-java 由 Runlume 发布，未进入 Maven Central。
 platform-integration-sdk = "1.2.0"
 # 平台集成 Starter 与 SDK 分开发布，版本各自演进；SDK 由 Starter 传递依赖引入。
-platform-integration-starter = "1.0.2"
+platform-integration-starter = "1.0.3"
 
 [libraries]
 # SDK 版本仍在此声明，供版本对齐与升级检查使用；运行时由 Starter 传递引入。

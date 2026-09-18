@@ -111,6 +111,7 @@ public class LaunchController {
         sessionEstablisher.establish(
                 user,
                 workspace,
+                launch.platformUserId(),
                 launch.membershipRevision(),
                 expiresAt,
                 request,

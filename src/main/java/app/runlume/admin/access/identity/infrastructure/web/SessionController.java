@@ -114,7 +114,7 @@ public class SessionController {
                 body.displayName(),
                 body.password()
         );
-        sessionEstablisher.establish(user, null, 0L, sessionExpiry(), request, response);
+        sessionEstablisher.establish(user, null, null, 0L, sessionExpiry(), request, response);
         auditLog.record(new AuditEntry(
                 AuditEntry.ActorType.USER,
                 user.id().toString(),
@@ -157,7 +157,7 @@ public class SessionController {
             throw IdentityProblem.of(IdentityProblem.Code.INVALID_CREDENTIALS);
         }
         AdminUserView user = ((AdminUserDetails) authentication.getPrincipal()).user();
-        sessionEstablisher.establish(user, null, 0L, sessionExpiry(), request, response);
+        sessionEstablisher.establish(user, null, null, 0L, sessionExpiry(), request, response);
         identity.recordLogin(user.id());
         auditLog.record(loginAudit(user.id().toString(), AuditEntry.Outcome.SUCCESS));
         return SessionResponse.from(user);
