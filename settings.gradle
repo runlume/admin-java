@@ -1,0 +1,36 @@
+pluginManagement {
+	repositories {
+		gradlePluginPortal()
+		mavenCentral()
+	}
+}
+
+if (JavaVersion.current() != JavaVersion.VERSION_25) {
+	throw new GradleException(
+		"Runlume 标准后台后端必须使用 Java 25，当前为 ${JavaVersion.current()}"
+	)
+}
+
+dependencyResolutionManagement {
+	repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
+	repositories {
+		mavenCentral()
+		maven {
+			name = 'runlumeNexus'
+			url = uri('https://nexus.runlume.app/repository/maven-public/')
+			content {
+				includeGroupByRegex 'app\\.runlume(\\..*)?'
+			}
+			def nexusUsername = providers.gradleProperty('runlumeNexusUsername').orNull
+			def nexusPassword = providers.gradleProperty('runlumeNexusPassword').orNull
+			if (nexusUsername != null && nexusPassword != null) {
+				credentials {
+					username = nexusUsername
+					password = nexusPassword
+				}
+			}
+		}
+	}
+}
+
+rootProject.name = 'admin-java'

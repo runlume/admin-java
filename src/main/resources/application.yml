@@ -1,0 +1,88 @@
+spring:
+  application:
+    name: admin-java
+  autoconfigure:
+    exclude:
+      # REMOTE 接入不要求业务 SaaS 持有或校验 Deployment License，平台只用订阅、权益、
+      # AppInstance 生命周期和实例服务 Token 完成授权。该自动配置要求业务系统提供
+      # DeploymentLicenseStartupResolver 与 LicenseContextProvider，缺失时会让上下文启动失败，
+      # 因此这里显式关闭。交付客户可自行运行的私有化镜像时，删除本排除项并按
+      # deployment-license 运行门禁文档提供 forge.license.* 配置与 classpath license.bin。
+      - app.runlume.platform.sdk.license.autoconfigure.DeploymentLicenseAutoConfiguration
+  datasource:
+    url: ${ADMIN_DB_URL:jdbc:postgresql://localhost:5432/admin}
+    username: ${ADMIN_DB_USER:admin}
+    password: ${ADMIN_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 1
+      connection-timeout: 5000
+      validation-timeout: 2000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jooq:
+    sql-dialect: POSTGRES
+  session:
+    timeout: ${ADMIN_SESSION_TIMEOUT:12h}
+    jdbc:
+      initialize-schema: never
+  mvc:
+    problemdetails:
+      enabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+server:
+  forward-headers-strategy: framework
+  shutdown: graceful
+  servlet:
+    session:
+      cookie:
+        name: ADMIN_SESSION
+        http-only: true
+        # 生产必须保持 true；现代浏览器在 http://localhost 上同样接受 Secure Cookie。
+        secure: ${ADMIN_SESSION_COOKIE_SECURE:true}
+        same-site: lax
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+admin:
+  # 本地账号与会话
+  local:
+    registration-enabled: ${ADMIN_REGISTRATION_ENABLED:true}
+    session-ttl: ${ADMIN_SESSION_TTL:12h}
+
+  # 平台接入。默认关闭：关闭时 Launch 与生命周期入口整体拒绝，业务后台仍可独立运行。
+  # 所有平台地址只取本配置，浏览器与请求参数不能覆盖；Client Secret 只来自环境变量或密钥管理。
+  platform:
+    enabled: ${ADMIN_PLATFORM_ENABLED:false}
+    module-id: ${ADMIN_PLATFORM_MODULE_ID:example.admin}
+    base-uri: ${ADMIN_PLATFORM_BASE_URI:http://localhost:8080}
+    runtime-issuer: ${ADMIN_PLATFORM_RUNTIME_ISSUER:http://localhost:8080}
+    runtime-jwks-uri: ${ADMIN_PLATFORM_RUNTIME_JWKS_URI:http://localhost:8080/integration/v1/.well-known/jwks.json}
+    runtime-audience: ${ADMIN_PLATFORM_RUNTIME_AUDIENCE:example.admin}
+    launch-path: ${ADMIN_PLATFORM_LAUNCH_PATH:/launch}
+    service-issuer: ${ADMIN_PLATFORM_SERVICE_ISSUER:http://localhost:8081/realms/runlume}
+    service-jwks-uri: ${ADMIN_PLATFORM_SERVICE_JWKS_URI:http://localhost:8081/realms/runlume/protocol/openid-connect/certs}
+    service-audience: ${ADMIN_PLATFORM_SERVICE_AUDIENCE:platform-integration-api}
+    lifecycle-audience: ${ADMIN_PLATFORM_LIFECYCLE_AUDIENCE:example.admin}
+    service-token-uri: ${ADMIN_PLATFORM_SERVICE_TOKEN_URI:http://localhost:8081/realms/runlume/protocol/openid-connect/token}
+    service-client-id: ${ADMIN_PLATFORM_SERVICE_CLIENT_ID:admin-java}
+    service-client-secret: ${ADMIN_PLATFORM_SERVICE_CLIENT_SECRET:}
+    connect-timeout: ${ADMIN_PLATFORM_CONNECT_TIMEOUT:5s}
+    request-timeout: ${ADMIN_PLATFORM_REQUEST_TIMEOUT:5s}
+
+logging:
+  level:
+    root: INFO
+    app.runlume.admin: INFO

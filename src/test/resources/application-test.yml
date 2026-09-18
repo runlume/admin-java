@@ -1,0 +1,13 @@
+# 测试专用覆盖：MockMvc 走明文 HTTP，需要关闭 Secure Cookie 才能回传会话。
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+
+admin:
+  local:
+    registration-enabled: true
+    session-ttl: 30m
+  platform:
+    enabled: false

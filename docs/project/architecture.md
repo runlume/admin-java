@@ -1,0 +1,113 @@
+# 架构与边界
+
+> 平台接入的接口契约见 [platform-integration.md](platform-integration.md)。
+> 完整接入标准保存在平台仓库（私有），本仓库不转引。
+
+## 1. 定位
+
+admin-java 是**业务系统后端**，不是平台控制面。它自己拥有进程、数据库和会话，通过薄适配层
+`access` 与平台交换身份和生命周期事实，平台不跨库查询本系统的业务数据。
+
+与平台的关系分两层：
+
+- **本地层**：自有账号、角色、权限、会话。不接平台也能独立运行。
+- **接入层**：平台 Launch 建会话、实例生命周期、联机探针。由 `access` 独占。
+
+## 2. 包结构
+
+```text
+app.runlume.admin
+├── access/                     平台集成 owning module
+│   ├── WorkspaceStatus         工作区状态机
+│   ├── WorkspaceView           平台实例 ↔ 本地工作区映射
+│   ├── WorkspaceDirectory      只读端口
+│   ├── WorkspaceLifecycle      生命周期命令的幂等端口
+│   ├── PlatformIntegrationProperties
+│   ├── identity/               Named Interface "identity"
+│   ├── observability/          Named Interface "observability"
+│   └── infrastructure/         jOOQ 实现、生命周期入站、Problem 处理
+└── notice/                     示例业务域（与 access 平级）
+```
+
+规则：
+
+1. 业务域**只能** import `access.identity` 与 `access.observability` 的公开类型。
+2. 业务域禁止 import `access.*.infrastructure`、平台 SDK 类型和 jOOQ 生成类型。
+3. `access` 可以访问工作区映射表与平台 SDK；业务域不得自行读取平台 Token 或直接请求平台。
+4. 由 `AdminModulesTests` 的 `ApplicationModules.verify()` 与源码 import 审查共同约束。
+
+## 3. 身份与会话
+
+两条链路最终走同一个 `LocalSessionEstablisher`，行为一致：先生成新的会话标识防御会话固定，
+再写入只含派生身份的 `AdminSessionPrincipal`。
+
+| 链路 | 身份来源 | 会话绝对过期 |
+| --- | --- | --- |
+| 本地登录 / 注册 | `admin_user`（BCrypt 口令） | `admin.local.session-ttl` |
+| 平台 Launch | 平台 Context Token 验证后的映射账号 | `min(session-ttl, Context Token exp)` |
+
+会话只保存 `userId`、`workspaceId`、`email`、`displayName`、`roles`、`permissions` 与 `expiresAt`，
+**不含**任何 Token、Launch Code、Client Secret 或完整 Claims。
+
+平台映射账号与本地账号在同一个 `admin_user` 表中，用 `credential_source` 区分：
+
+- `LOCAL`：有口令摘要，邮箱唯一（部分唯一索引）。
+- `PLATFORM`：无口令，`(platform_app_instance_id, platform_user_id)` 唯一；邮箱允许与本地账号重名，
+  避免用邮箱碰撞把平台身份接到本地账号上造成接管。
+
+账号被禁用时同时撤销该主体的全部服务端会话，不等会话自然过期。
+
+## 4. 权限模型
+
+权限码与 admin-design 前端共用一套约定：`*` 全部、`模块:*` 模块内全部、其余精确匹配。
+
+服务端在建立会话时用 `PermissionCatalog.expand` 把通配展开成具体码写入 Spring Security 的授权集合，
+因此 `@PreAuthorize("hasAuthority('user:view')")` 对持有 `*` 或 `user:*` 的账号同样成立。
+接口返回给前端的是**原始**权限码，由前端自行做通配过滤。
+
+权限目录是代码内置的（`PermissionCatalog`），角色与授予关系在数据库（`admin_role`、
+`admin_role_permission`、`admin_user_role`），内置角色由 Flyway 迁移写入。
+
+## 5. 租户隔离
+
+`admin_workspace` 是平台 `AppInstance` 与本地工作区的一对一映射，也是所有业务数据的隔离根。
+
+- 工作区标识只来自已认证会话的 `AdminSessionPrincipal.workspaceId`。
+- 请求体、Query 与自定义 Header 中的 Account、实例、工作区声明一律不可信。
+- 示例业务域 `notice` 用 `workspace_id` 体现该规则：公共公告（`NULL`）对全部会话可见，
+  实例公告只对所属工作区可见。
+
+平台生命周期入参里的 `accountId`、`appInstanceId` 只在**首次建档**时使用，不能作为普通业务请求的租户凭据。
+
+## 6. 平台接入结构
+
+| 关注点 | 位置 | 说明 |
+| --- | --- | --- |
+| 出站 Launch 交换 | `identity.infrastructure.SdkPlatformLaunchGateway` | 只做凭据注入与失败分类，协议由 SDK 实现 |
+| 模块服务身份 | `identity.infrastructure.ModuleServiceTokenProvider` | client_credentials 按 Scope 缓存到过期前 30 秒 |
+| 联机探针 | `identity.infrastructure.PlatformConnectionProbe` | 只探测固定 JWKS，10 秒缓存，失败关闭 |
+| 入站生命周期鉴权 | `access.infrastructure.security.LifecycleSecurityConfiguration` | 独立安全链，按 Scope 逐端点授权 |
+| 生命周期幂等 | `access.infrastructure.JdbcWorkspaceLifecycle` | 幂等键 + 请求摘要，冲突返回 409 |
+
+对应关系：`runtime_*` 面向用户上下文 Token（`token_use=instance_context`，由 SDK 验签）；
+`service_*` / `lifecycle-audience` 面向平台调用的生命周期服务 Token（Keycloak client_credentials，
+由独立资源服务器链校验 Issuer、Audience 与 Scope）。两套 Issuer/JWKS 不能混用。
+
+`admin.platform.enabled=false` 时：Launch 入口由 `DisabledPlatformLaunchGateway` 失败关闭，
+生命周期入口由 `LifecycleDisabledSecurityConfiguration` 整体拒绝。
+
+## 7. 事务、幂等与可观测性
+
+- 生命周期命令先在本地事务内持久化操作状态再返回结果，进程重启后仍可查询。
+- 相同幂等键 + 相同请求摘要返回首次结果；相同幂等键 + 不同摘要返回 `IDEMPOTENCY_CONFLICT`。
+- 审计使用独立事务追加，业务回滚时登录失败等安全事实仍然留痕。
+- 关联标识由服务端生成或采纳通过严格格式校验的入站 `X-Request-Id`，只用于串联日志，
+  绝不作为身份、租户或授权依据。
+- 所有失败统一为 `application/problem+json` 并带稳定 `code`。
+
+## 8. 明确不做
+
+- 不缓存或转发平台用户 Token 给浏览器。
+- 不把平台 `Account`/`AppInstance` 当作本地表的租户主键，只保存映射。
+- 不在本仓库实现资源配额、AI、Capability、Event、统一通知与组织目录；
+  出现真实用例时按接入标准逐项启用。

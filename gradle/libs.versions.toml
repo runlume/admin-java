@@ -1,0 +1,13 @@
+[versions]
+checkstyle = "13.3.0"
+spring-modulith = "2.1.0"
+# platform-integration-sdk-java 由 platform 仓库发布，未进入 Maven Central。
+platform-integration-sdk = "1.0.0"
+
+[libraries]
+platform-integration-sdk-java = { module = "app.runlume.platform:platform-integration-sdk-java", version.ref = "platform-integration-sdk" }
+spring-modulith-bom = { module = "org.springframework.modulith:spring-modulith-bom", version.ref = "spring-modulith" }
+spring-modulith-api = { module = "org.springframework.modulith:spring-modulith-api" }
+spring-modulith-starter-test = { module = "org.springframework.modulith:spring-modulith-starter-test" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }
+testcontainers-junit = { module = "org.testcontainers:testcontainers-junit-jupiter" }
