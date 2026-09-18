@@ -23,6 +23,8 @@ import static app.runlume.admin.access.infrastructure.jooq.tables.AdminWorkspace
 @Repository
 public class JdbcWorkspaceDirectory implements WorkspaceDirectory {
 
+    private static final String WORKSPACE_SOURCE_PLATFORM = "PLATFORM";
+
     private final DSLContext dsl;
 
     /**
@@ -59,6 +61,7 @@ public class JdbcWorkspaceDirectory implements WorkspaceDirectory {
     @Override
     public List<WorkspaceView> list(int offset, int limit) {
         return dsl.selectFrom(ADMIN_WORKSPACE)
+                .where(ADMIN_WORKSPACE.SOURCE.eq(WORKSPACE_SOURCE_PLATFORM))
                 .orderBy(ADMIN_WORKSPACE.CREATED_AT.desc(), ADMIN_WORKSPACE.ID.asc())
                 .limit(limit)
                 .offset(Math.max(offset, 0))
@@ -67,7 +70,16 @@ public class JdbcWorkspaceDirectory implements WorkspaceDirectory {
 
     @Override
     public long count() {
-        return dsl.fetchCount(ADMIN_WORKSPACE);
+        return dsl.fetchCount(ADMIN_WORKSPACE, ADMIN_WORKSPACE.SOURCE.eq(WORKSPACE_SOURCE_PLATFORM));
+    }
+
+    @Override
+    public Optional<WorkspaceStatus> statusOf(UUID workspaceId) {
+        return dsl.select(ADMIN_WORKSPACE.STATUS)
+                .from(ADMIN_WORKSPACE)
+                .where(ADMIN_WORKSPACE.ID.eq(workspaceId))
+                .fetchOptional(ADMIN_WORKSPACE.STATUS)
+                .map(WorkspaceStatus::valueOf);
     }
 
     static WorkspaceView toView(AdminWorkspaceRecord record) {

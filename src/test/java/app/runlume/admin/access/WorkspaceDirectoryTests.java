@@ -1,6 +1,8 @@
 package app.runlume.admin.access;
 
 import app.runlume.admin.access.WorkspaceLifecycle.ProvisionRequest;
+import app.runlume.admin.access.identity.AdminIdentity;
+import app.runlume.admin.access.identity.AdminUserView;
 import app.runlume.admin.support.PostgresTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +13,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 工作区映射的按平台边界读取。
+ * 工作区读取：平台映射按平台边界，本地工作区按标识。
  *
  * <p>用例通过真实生命周期开通写入映射并在事务内回滚，避免手工建表或直接改数据。</p>
  *
@@ -26,6 +28,9 @@ class WorkspaceDirectoryTests extends PostgresTestSupport {
 
     @Autowired
     private WorkspaceLifecycle lifecycle;
+
+    @Autowired
+    private AdminIdentity identity;
 
     @Test
     void findsProvisionedWorkspaceByPlatformBoundary() {
@@ -46,5 +51,22 @@ class WorkspaceDirectoryTests extends PostgresTestSupport {
     @Test
     void returnsEmptyWhenPlatformBoundaryIsUnknown() {
         assertThat(workspaces.find(UUID.randomUUID(), UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    void localWorkspaceIsOutsidePlatformMappingsButVisibleByStatus() {
+        long platformMappings = workspaces.count();
+        AdminUserView local = identity.register(
+                "directory-" + UUID.randomUUID() + "@runlume.local",
+                "本地账号",
+                "runlume-password"
+        );
+
+        assertThat(workspaces.statusOf(local.workspaceId()))
+                .contains(WorkspaceStatus.ACTIVE);
+        assertThat(workspaces.count()).isEqualTo(platformMappings);
+        assertThat(workspaces.list(0, 100))
+                .extracting(WorkspaceView::id)
+                .doesNotContain(local.workspaceId());
     }
 }

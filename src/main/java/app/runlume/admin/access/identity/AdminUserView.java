@@ -9,6 +9,7 @@ import java.util.UUID;
  * 本地账号的只读视图，不包含口令摘要。
  *
  * @param id 账号标识
+ * @param workspaceId 账号所属工作区；未绑定工作区时为空
  * @param email 登录邮箱
  * @param displayName 展示名称
  * @param status 账号状态
@@ -22,6 +23,7 @@ import java.util.UUID;
  */
 public record AdminUserView(
         UUID id,
+        UUID workspaceId,
         String email,
         String displayName,
         UserStatus status,

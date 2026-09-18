@@ -14,10 +14,11 @@ import java.util.List;
 import java.util.UUID;
 
 import static app.runlume.admin.access.identity.infrastructure.jooq.tables.AdminUser.ADMIN_USER;
+import static app.runlume.admin.access.infrastructure.jooq.tables.AdminWorkspace.ADMIN_WORKSPACE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 平台成员必须绑定工作区，本地运营账号必须没有工作区。
+ * 平台成员必须绑定平台映射的工作区，本地账号必须绑定自有的本地工作区。
  *
  * @author 树深技术
  * @since 0.1 at 2026/9/18 16:10
@@ -71,14 +72,33 @@ class PlatformMemberScopeTests extends PostgresTestSupport {
     }
 
     @Test
-    void localAccountHasNoWorkspace() {
+    void localAccountJoinsLocalWorkspace() {
         AdminUserView local = identity.register(
                 "local-" + UUID.randomUUID() + "@runlume.local",
                 "本地运营",
                 "runlume-password"
         );
 
-        assertThat(storedWorkspaceId(local.id())).isNull();
+        UUID workspaceId = storedWorkspaceId(local.id());
+        assertThat(workspaceId).isNotNull().isEqualTo(local.workspaceId());
+        assertThat(storedWorkspaceSource(workspaceId)).isEqualTo("LOCAL");
+    }
+
+    @Test
+    void localAccountsShareTheSingleLocalWorkspace() {
+        AdminUserView first = identity.register(
+                "local-a-" + UUID.randomUUID() + "@runlume.local",
+                "首位本地账号",
+                "runlume-password"
+        );
+        AdminUserView second = identity.register(
+                "local-b-" + UUID.randomUUID() + "@runlume.local",
+                "次位本地账号",
+                "runlume-password"
+        );
+
+        assertThat(storedWorkspaceId(second.id()))
+                .isEqualTo(storedWorkspaceId(first.id()));
     }
 
     @Test
@@ -209,6 +229,13 @@ class PlatformMemberScopeTests extends PostgresTestSupport {
                 .from(ADMIN_USER)
                 .where(ADMIN_USER.ID.eq(userId))
                 .fetchOne(ADMIN_USER.WORKSPACE_ID);
+    }
+
+    private String storedWorkspaceSource(UUID workspaceId) {
+        return dsl.select(ADMIN_WORKSPACE.SOURCE)
+                .from(ADMIN_WORKSPACE)
+                .where(ADMIN_WORKSPACE.ID.eq(workspaceId))
+                .fetchOne(ADMIN_WORKSPACE.SOURCE);
     }
 
 }

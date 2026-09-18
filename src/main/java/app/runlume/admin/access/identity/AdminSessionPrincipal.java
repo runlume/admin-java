@@ -16,7 +16,7 @@ import java.util.UUID;
  *
  * @param userId 本地账号标识
  * @param platformUserId 平台用户标识；本地自有账号为空
- * @param workspaceId 平台 Launch 映射出的本地工作区；本地自有账号为空
+ * @param workspaceId 会话所属本地工作区；平台会话由实例映射，本地账号可绑定自有工作区
  * @param platformAccountId 平台 Account 标识；本地自有账号为空
  * @param platformAppInstanceId 平台 AppInstance 标识；本地自有账号为空
  * @param email 登录邮箱
@@ -46,7 +46,9 @@ public record AdminSessionPrincipal(
     private static final long serialVersionUID = 1L;
 
     /**
-     * 固化身份字段，并要求平台用户、工作区与平台边界同时存在或同时缺失。
+     * 固化身份字段，并区分三种会话形态：
+     * 平台会话（平台用户、工作区与平台边界齐全）、本地工作区会话（仅工作区）、
+     * 以及本地无工作区会话（自举与排障，平台字段与工作区均为空）。
      */
     public AdminSessionPrincipal {
         Objects.requireNonNull(userId, "userId");
@@ -56,17 +58,16 @@ public record AdminSessionPrincipal(
         if (membershipRevision < 0) {
             throw new IllegalArgumentException("Membership revision must not be negative.");
         }
-        boolean platformSession = workspaceId != null
-                && platformUserId != null
+        boolean platformSession = platformUserId != null
                 && platformAccountId != null
-                && platformAppInstanceId != null;
-        boolean localSession = workspaceId == null
-                && platformUserId == null
+                && platformAppInstanceId != null
+                && workspaceId != null;
+        boolean localWorkspaceSession = platformUserId == null
                 && platformAccountId == null
                 && platformAppInstanceId == null;
-        if (!platformSession && !localSession) {
+        if (!platformSession && !localWorkspaceSession) {
             throw new IllegalArgumentException(
-                    "Platform user, workspace, platform account and app instance must be present together."
+                    "Platform user, account and app instance must be present together with a workspace."
             );
         }
         roles = Set.copyOf(roles);

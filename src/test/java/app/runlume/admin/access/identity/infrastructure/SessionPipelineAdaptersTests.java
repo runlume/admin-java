@@ -16,12 +16,12 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 会话边界与工作区读取两个适配端口的行为。
+ * 会话边界与工作区读取两个适配端口的行为：平台会话、本地工作区会话与自举会话。
  *
  * @author 树深技术
  * @since 0.1 at 2026/9/18 19:40
  */
-class PlatformSessionAdaptersTests {
+class SessionPipelineAdaptersTests {
 
     private static final UUID ACCOUNT_ID = UUID.randomUUID();
     private static final UUID APP_INSTANCE_ID = UUID.randomUUID();
@@ -29,7 +29,7 @@ class PlatformSessionAdaptersTests {
     private static final UUID PLATFORM_USER_ID = UUID.randomUUID();
     private static final Instant EXPIRES_AT = Instant.parse("2026-09-18T20:00:00Z");
 
-    private final PlatformSessionAdapters adapters = new PlatformSessionAdapters();
+    private final SessionPipelineAdapters adapters = new SessionPipelineAdapters();
 
     @Test
     void mapsPlatformSessionAndSkipsForeignPrincipals() {
@@ -37,11 +37,36 @@ class PlatformSessionAdaptersTests {
                 platformPrincipal()
         );
 
+        assertThat(context.platformSession()).isTrue();
         assertThat(context.workspaceBound()).isTrue();
         assertThat(context.workspaceId()).isEqualTo(WORKSPACE_ID);
         assertThat(context.platformUserId()).isEqualTo(PLATFORM_USER_ID);
         assertThat(context.expiresAt()).isEqualTo(EXPIRES_AT);
         assertThat(adapters.sessionContextResolver().resolve("anonymous")).isNull();
+    }
+
+    @Test
+    void mapsLocalWorkspaceSessionWithoutPlatformBoundary() {
+        PlatformSessionContext context = adapters.sessionContextResolver().resolve(
+                localPrincipal(WORKSPACE_ID)
+        );
+
+        assertThat(context.platformSession()).isFalse();
+        assertThat(context.localWorkspaceSession()).isTrue();
+        assertThat(context.workspaceId()).isEqualTo(WORKSPACE_ID);
+        assertThat(context.platformAccountId()).isNull();
+        assertThat(context.platformAppInstanceId()).isNull();
+        assertThat(context.platformUserId()).isNull();
+    }
+
+    @Test
+    void keepsUnboundLocalSessionOutOfThePipeline() {
+        PlatformSessionContext context = adapters.sessionContextResolver().resolve(
+                localPrincipal(null)
+        );
+
+        assertThat(context.workspaceBound()).isFalse();
+        assertThat(context.expiresAt()).isEqualTo(EXPIRES_AT);
     }
 
     @Test
@@ -57,6 +82,21 @@ class PlatformSessionAdaptersTests {
         assertThat(suspended.find(ACCOUNT_ID, APP_INSTANCE_ID).orElseThrow().active()).isFalse();
         assertThat(adapters.sessionWorkspaceLookup(new StubDirectory(null))
                 .find(ACCOUNT_ID, APP_INSTANCE_ID)).isEmpty();
+    }
+
+    @Test
+    void reportsLocalWorkspaceActivityByIdentifier() {
+        SessionWorkspaceLookup active = adapters.sessionWorkspaceLookup(
+                directoryWith(WorkspaceStatus.ACTIVE)
+        );
+        SessionWorkspaceLookup suspended = adapters.sessionWorkspaceLookup(
+                directoryWith(WorkspaceStatus.SUSPENDED)
+        );
+
+        assertThat(active.findById(WORKSPACE_ID).orElseThrow().active()).isTrue();
+        assertThat(suspended.findById(WORKSPACE_ID).orElseThrow().active()).isFalse();
+        assertThat(adapters.sessionWorkspaceLookup(new StubDirectory(null))
+                .findById(WORKSPACE_ID)).isEmpty();
     }
 
     private static WorkspaceDirectory directoryWith(WorkspaceStatus status) {
@@ -108,6 +148,27 @@ class PlatformSessionAdaptersTests {
         public long count() {
             return 0L;
         }
+
+        @Override
+        public Optional<WorkspaceStatus> statusOf(UUID workspaceId) {
+            return Optional.ofNullable(workspace).map(WorkspaceView::status);
+        }
+    }
+
+    private static AdminSessionPrincipal localPrincipal(UUID workspaceId) {
+        return new AdminSessionPrincipal(
+                UUID.randomUUID(),
+                null,
+                workspaceId,
+                null,
+                null,
+                "local@runlume.local",
+                "本地账号",
+                Set.of("admin"),
+                Set.of("*"),
+                0L,
+                EXPIRES_AT
+        );
     }
 
     private static AdminSessionPrincipal platformPrincipal() {

@@ -29,10 +29,23 @@
    `lifecycle-audience` 按 Manifest 填写。
 2. 表更新 `accountId`/`appInstanceId` 是 UUID；平台使用其它形态时同步
    `LifecycleController.ProvisionRequest` 与 `admin_workspace` 列类型。
-3. `SUSPENDED` 的业务写拦截要落到每个写路径，不能只挡登录。示例中的做法是把工作区状态
-   放进会话并在仓储层再次校验。
+3. `SUSPENDED` 的业务写拦截由 starter 的会话有效性管线承担（每请求复验工作区状态），
+   不要只在登录时挡一次；新增自己的会话入口时同样要建立带工作区的主体。
 4. 需要资源、AI、Capability 或 Event 时，按平台侧的完整接入标准增加端口与适配器，
    **不要**在 `access` 里预留空实现。
+
+### 两种运行模式
+
+同一份代码支持两种模式，靠配置切换，不需要改代码：
+
+| 模式 | 配置 | 工作区 | 进入方式 |
+| --- | --- | --- | --- |
+| 本地自有 | `ADMIN_PLATFORM_ENABLED=false`（默认）+ `ADMIN_REGISTRATION_ENABLED=true` | 首个注册账号创建 `LOCAL` 工作区 | `/api/v1/auth/register`、`/api/v1/auth/login` |
+| 平台接入 | `ADMIN_PLATFORM_ENABLED=true`、平台四项固定值、模块服务凭据 | 平台开通创建 `PLATFORM` 工作区 | 平台 Launch |
+
+两种模式并存：平台接入打开时默认关闭自助注册，但本地账号与本地工作区仍然可用，且与平台
+工作区互不可见。不要为了"只支持平台"而删掉 `credential_source='LOCAL'` 分支——它同时是
+独立部署与排障的入口。
 
 ## 3. 与 admin-design 对接
 
@@ -56,7 +69,10 @@
 - `./gradlew build` 通过（含 Checkstyle、Modulith 门禁、Testcontainers 集成测试）。
 - 未登录访问 `/api/v1/me` 返回 401；无 CSRF 的写请求返回 403。
 - 首位注册账号获得 `admin`；`GET /api/v1/me` 返回的权限码与数据库角色一致。
+- 首个注册账号自动获得本地工作区；用该账号调用 `GET /api/v1/notices` 返回 `200` 而不是
+  `403 WORKSPACE_REQUIRED`，并能在 `GET /api/v1/members` 看到本工作区成员。
 - 禁用账号后，该账号既有会话在下次请求即失效。
 - 同一 `Idempotency-Key` 重复开通只产生一个 workspace；换请求体再发返回 409。
 - `GET /api/v1/platform-connection` 在平台不可达时为 `false`，且响应体只有 `connected`。
-- 平台 Launch 建立的会话过期时间不晚于 Context Token 的 `exp`。
+- 平台 Launch 建立的会话绝对过期时间取 `admin.local.session-ttl`；平台撤销成员后，
+  最迟在写窗口（默认 30 秒）内该会话的下一次请求返回 `401`。

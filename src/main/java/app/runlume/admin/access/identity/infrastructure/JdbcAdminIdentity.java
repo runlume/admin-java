@@ -8,6 +8,7 @@ import app.runlume.admin.access.identity.IdentityProblem;
 import app.runlume.admin.access.identity.PlatformLaunchIdentity;
 import app.runlume.admin.access.identity.UserStatus;
 import app.runlume.admin.access.identity.infrastructure.jooq.tables.records.AdminUserRecord;
+import app.runlume.admin.access.WorkspaceStatus;
 import app.runlume.platform.sdk.identity.InstanceRoles;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
@@ -28,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import static app.runlume.admin.access.infrastructure.jooq.tables.AdminWorkspace.ADMIN_WORKSPACE;
 import static app.runlume.admin.access.identity.infrastructure.jooq.tables.AdminRole.ADMIN_ROLE;
 import static app.runlume.admin.access.identity.infrastructure.jooq.tables.AdminRolePermission.ADMIN_ROLE_PERMISSION;
 import static app.runlume.admin.access.identity.infrastructure.jooq.tables.AdminUser.ADMIN_USER;
@@ -48,6 +50,7 @@ public class JdbcAdminIdentity implements AdminIdentity {
     private static final String ROLE_MEMBER = "member";
     private static final String ROLE_SOURCE_LOCAL = "LOCAL";
     private static final String ROLE_SOURCE_PLATFORM = "PLATFORM";
+    private static final String WORKSPACE_SOURCE_LOCAL = "LOCAL";
     private static final String REGISTRATION_LOCK = "admin-java.registration";
     private static final String PLATFORM_EMAIL_DOMAIN = "runlume.local";
     private static final String UNIQUE_VIOLATION = "23505";
@@ -72,6 +75,7 @@ public class JdbcAdminIdentity implements AdminIdentity {
         dsl.fetch("select pg_advisory_xact_lock(hashtext(?)::bigint)", REGISTRATION_LOCK);
         boolean firstAccount = dsl.fetchCount(ADMIN_USER) == 0;
         UUID userId = insertLocalUser(email, displayName, rawPassword);
+        bindLocalWorkspace(userId);
         replaceLocalRoles(userId, Set.of(firstAccount ? ROLE_ADMIN : ROLE_MEMBER));
         return loadUser(userId);
     }
@@ -85,6 +89,7 @@ public class JdbcAdminIdentity implements AdminIdentity {
             Set<String> roleCodes
     ) {
         UUID userId = insertLocalUser(email, displayName, rawPassword);
+        joinLocalWorkspace(userId);
         replaceLocalRoles(userId, roleCodes.isEmpty() ? Set.of(ROLE_MEMBER) : roleCodes);
         return loadUser(userId);
     }
@@ -281,8 +286,60 @@ public class JdbcAdminIdentity implements AdminIdentity {
     }
 
     /**
-     * 整体替换本地角色授予，保留平台派生授予。
+     * 把本地账号绑定到自有工作区；没有时先创建。
+     *
+     * <p>开源独立使用时没有平台开通流程，工作区由本系统自建；平台接入模式下注册默认关闭，
+     * 因此不会与平台映射的工作区冲突。同一部署内的本地账号共用一个工作区，与租户内的
+     * 成员模型保持一致。</p>
+     *
+     * @param userId 本地账号标识
      */
+    private void bindLocalWorkspace(UUID userId) {
+        UUID workspaceId = findLocalWorkspace().orElseGet(this::createLocalWorkspace);
+        attachWorkspace(userId, workspaceId);
+    }
+
+    /**
+     * 把本地账号接入已存在的本地工作区；没有本地工作区时保持不绑定。
+     *
+     * <p>后台创建的账号沿用注册引导出的工作区；平台接入模式下没有本地工作区，账号因此
+     * 不绑定工作区，仍可由平台映射的成员模型管理。</p>
+     *
+     * @param userId 本地账号标识
+     */
+    private void joinLocalWorkspace(UUID userId) {
+        findLocalWorkspace().ifPresent(workspaceId -> attachWorkspace(userId, workspaceId));
+    }
+
+    private Optional<UUID> findLocalWorkspace() {
+        return dsl.select(ADMIN_WORKSPACE.ID)
+                .from(ADMIN_WORKSPACE)
+                .where(ADMIN_WORKSPACE.SOURCE.eq(WORKSPACE_SOURCE_LOCAL))
+                .orderBy(ADMIN_WORKSPACE.CREATED_AT.asc(), ADMIN_WORKSPACE.ID.asc())
+                .limit(1)
+                .fetchOptional(ADMIN_WORKSPACE.ID);
+    }
+
+    private UUID createLocalWorkspace() {
+        UUID workspaceId = UUID.randomUUID();
+        dsl.insertInto(ADMIN_WORKSPACE)
+                .set(ADMIN_WORKSPACE.ID, workspaceId)
+                .set(ADMIN_WORKSPACE.SOURCE, WORKSPACE_SOURCE_LOCAL)
+                .set(ADMIN_WORKSPACE.STATUS, WorkspaceStatus.ACTIVE.name())
+                .set(ADMIN_WORKSPACE.VERSION, 0L)
+                .execute();
+        return workspaceId;
+    }
+
+    private void attachWorkspace(UUID userId, UUID workspaceId) {
+        dsl.update(ADMIN_USER)
+                .set(ADMIN_USER.WORKSPACE_ID, workspaceId)
+                .set(ADMIN_USER.UPDATED_AT, OffsetDateTime.now())
+                .set(ADMIN_USER.VERSION, ADMIN_USER.VERSION.plus(1))
+                .where(ADMIN_USER.ID.eq(userId))
+                .execute();
+    }
+
     private void replaceLocalRoles(UUID userId, Set<String> roleCodes) {
         Map<String, UUID> roleIds = requireRoleIds(roleCodes);
         dsl.deleteFrom(ADMIN_USER_ROLE)
@@ -379,6 +436,7 @@ public class JdbcAdminIdentity implements AdminIdentity {
     ) {
         return new AdminUserView(
                 record.getId(),
+                record.getWorkspaceId(),
                 record.getEmail(),
                 record.getDisplayName(),
                 UserStatus.valueOf(record.getStatus()),

@@ -13,14 +13,25 @@ admin-java 是**业务系统后端**，不是平台控制面。它自己拥有�
 - **本地层**：自有账号、角色、权限、会话。不接平台也能独立运行。
 - **接入层**：平台 Launch 建会话、实例生命周期、联机探针。由 `access` 独占。
 
+因此部署有两种模式，**并存**而不是二选一：
+
+| 模式 | 开关 | 工作区来源 | 进入方式 |
+| --- | --- | --- | --- |
+| 本地自有 | `admin.platform.enabled=false` + `admin.local.registration-enabled=true` | 本系统自建的 `LOCAL` 工作区 | 本系统账号口令 |
+| 平台接入 | `admin.platform.enabled=true` | 平台开通创建的 `PLATFORM` 工作区 | 平台 Launch |
+
+平台接入打开时默认关闭自助注册（生产入口是平台 Launch），但本地账号体系仍然保留：本地账号
+拥有自己的本地工作区并照常管理本工作区成员。两个模式的数据不互相可见：平台会话只看到平台
+映射工作区，本地会话只看到本地工作区。
+
 ## 2. 包结构
 
 ```text
 app.runlume.admin
 ├── access/                     平台集成 owning module
 │   ├── WorkspaceStatus         工作区状态机
-│   ├── WorkspaceView           平台实例 ↔ 本地工作区映射
-│   ├── WorkspaceDirectory      只读端口
+│   ├── WorkspaceView           平台实例 ↔ 平台来源工作区的映射
+│   ├── WorkspaceDirectory      工作区只读端口：平台映射与本地工作区状态
 │   ├── WorkspaceLifecycle      生命周期命令的幂等端口
 │   ├── PlatformIntegrationProperties
 │   ├── identity/               Named Interface "identity"
@@ -48,11 +59,20 @@ app.runlume.admin
 
 会话只保存 `userId`、`workspaceId`、`platformAccountId`、`platformAppInstanceId`、`email`、
 `displayName`、`roles`、`permissions` 与 `expiresAt`，**不含**任何 Token、Launch Code、
-Client Secret 或完整 Claims。工作区与平台边界同时存在或同时缺失：本地自有账号没有工作区。
+Client Secret 或完整 Claims。
 
-会话建立后仍有逐请求复验：`WorkspaceAccessFilter` 在每个请求按 `platformAccountId` 与
-`platformAppInstanceId` 重读工作区，要求 id 一致且状态为 `ACTIVE`，否则立即失效会话并返回 `401`。
-因此平台暂停或注销实例的状态变化最迟在下一个请求生效，而不是等到会话自然过期。
+会话形态由 `AdminSessionPrincipal` 在构造时固化，只有三种：平台会话（工作区与完整平台边界
+齐全）、本地工作区会话（只有本系统的自有工作区）、自举会话（两者都还没有，用于本地首次
+部署与排障）。
+
+会话建立后仍有逐请求复验，由平台集成 Starter 的**会话有效性管线**统一执行：绝对过期 →
+工作区状态 → 平台成员有效性。本仓库只提供两个 SPI（`identity.infrastructure.
+SessionPipelineAdapters`：会话边界映射、工作区读取）。本地工作区会话没有平台成员，只走前两层，
+租户边界由工作区状态承担；自举会话不参与管线，绝对过期由本仓库的 `SessionAbsoluteExpiryFilter`
+保证。任一环节不通过即失效会话并返回 `401`。
+
+因此平台暂停或注销实例、本地工作区被停用，最迟在一个校验窗口内生效（写请求 30 秒、读请求
+60 秒），而不是等到会话自然过期。
 
 平台映射账号与本地账号在同一个 `admin_user` 表中，用 `credential_source` 区分：
 
@@ -78,12 +98,20 @@ Client Secret 或完整 Claims。工作区与平台边界同时存在或同时�
 
 ## 5. 租户隔离
 
-`admin_workspace` 是平台 `AppInstance` 与本地工作区的一对一映射，也是所有业务数据的隔离根。
+`admin_workspace` 是所有业务数据的隔离根，也是本系统**自有的租户容器**，来源分两种：
+
+- `PLATFORM`：平台开通实例时创建，保留 `platform_account_id`、`platform_app_instance_id`、
+  `module_key`、`module_version`、`external_instance_id` 等平台边界字段，与平台 `AppInstance`
+  一一对应；
+- `LOCAL`：本系统自建。不接平台独立运行时由第一个本地账号注册时引导创建，平台字段全部为空，
+  同一部署内的本地账号共用一个本地工作区。
+
+平台映射只是工作区的一种来源，不是它的定义。
 
 - 工作区标识只来自已认证会话的 `AdminSessionPrincipal.workspaceId`。
 - 请求体、Query 与自定义 Header 中的 Account、实例、工作区声明一律不可信。
 - 示例业务域 `notice` 用 `workspace_id` 体现该规则：公告只对所属工作区可见；没有工作区的
-  本地运营会话被拒绝（`WORKSPACE_REQUIRED`），不再存在"`NULL` 即公共数据"的语义。
+  自举会话被拒绝（`WORKSPACE_REQUIRED`），不再存在"`NULL` 即公共数据"的语义。
 
 平台生命周期入参里的 `accountId`、`appInstanceId` 只在**首次建档**时使用，不能作为普通业务请求的租户凭据。
 
@@ -92,8 +120,8 @@ Client Secret 或完整 Claims。工作区与平台边界同时存在或同时�
 | 关注点 | 位置 | 说明 |
 | --- | --- | --- |
 | 出站 Launch 交换 | `identity.infrastructure.SdkPlatformLaunchGateway` | 只做凭据注入与失败分类，协议由 SDK 实现 |
-| 模块服务身份 | `identity.infrastructure.ModuleServiceTokenProvider` | client_credentials 按 Scope 缓存到过期前 30 秒 |
-| 联机探针 | `identity.infrastructure.PlatformConnectionProbe` | 只探测固定 JWKS，10 秒缓存，失败关闭 |
+| SDK 组件装配 | `platform-integration-spring-boot-starter` | 运行时客户端、模块服务身份、联机探针、关联标识都按 `platform.integration.*` 自动装配 |
+| 会话有效性管线 | 同上，本仓库只提供两个 SPI | 绝对过期 → 工作区状态 → 成员有效性；本地工作区会话跳过成员层 |
 | 入站生命周期鉴权 | `access.infrastructure.security.LifecycleSecurityConfiguration` | 独立安全链，按 Scope 逐端点授权 |
 | 生命周期幂等 | `access.infrastructure.JdbcWorkspaceLifecycle` | 幂等键 + 请求摘要，冲突返回 409 |
 

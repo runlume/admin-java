@@ -16,9 +16,9 @@ API contract: [docs/project/api.md](docs/project/api.md) · Docs: [docs/README.m
 
 The backend counterpart of [Standard Admin Frontend](https://github.com/runlume/admin-design): a standard starting
 point wired for the **minimal** integration path of `platform-integration-sdk-java`, shipping with **local user
-management and sign-in** so a product team only has to plug in its own business domain. Interface language and
-visual rules come from admin-design; API contract, sessions, permissions, tenant isolation and platform
-integration come from this one copy.
+management, sign-in and a local workspace** so it runs standalone with real tenant isolation; a product team
+only has to plug in its own business domain. Interface language and visual rules come from admin-design; API
+contract, sessions, permissions, tenant isolation and platform integration come from this one copy.
 
 Java 25 + Spring Boot 4.1 + Spring Security + PostgreSQL 18 + Flyway + jOOQ + Spring Modulith, built with the
 Gradle Wrapper only, passwords hashed with BCrypt.
@@ -28,12 +28,14 @@ Gradle Wrapper only, passwords hashed with BCrypt.
 | Capability | Notes |
 | --- | --- |
 | Local accounts | Register, sign in, sign out, current user, roles and permission codes, BCrypt passwords, disabling an account revokes its sessions immediately |
+| Local workspace | Without platform integration the first registered account bootstraps a `LOCAL` workspace, so local accounts use tenant-scoped business data normally |
 | Server-side sessions | Spring Session JDBC with an opaque cookie and an absolute expiry; sign-in and platform Launch share one establishment path |
 | CSRF | Cookie + request-header double submit; fetch the token from `GET /api/v1/csrf` |
-| Account and role management | Paged listing, create, rename, change roles, enable/disable (`user:*`, `role:*` codes) |
+| Account and role management | Paged listing, rename, change local roles, enable/disable for the current workspace (`example.admin.member.*`, `example.admin.role.view`) |
 | Minimal platform integration | Launch code exchange, the four lifecycle commands (idempotent), the connectivity probe, workspace mapping |
 | Platform boundary | Lifecycle endpoints are authorised per endpoint by service identity and scope; runtime tokens are verified by the SDK |
-| Tenant isolation | Every business table carries a workspace dimension, and the workspace id only ever comes from an authenticated session |
+| Session revalidation | Session validity pipeline (starter): absolute expiry → workspace status → platform member validity |
+| Tenant isolation | A workspace is this system's own tenant container (source `PLATFORM` or `LOCAL`), every business table carries a workspace dimension, and the id only ever comes from an authenticated session |
 | Observability | Server-side correlation id, non-sensitive audit trail, stable `application/problem+json` error codes |
 | Sample domain | `notice` demonstrates the boundary between a business domain and the `access` module |
 
@@ -150,12 +152,11 @@ Gradle properties when the repository requires authentication, and never commit 
 | `POST /api/v1/auth/logout` | session | Sign out and invalidate the server-side session |
 | `GET /api/v1/me` | session | Current user, roles and permission codes |
 | `GET /api/v1/permissions` | session | Built-in permission catalogue |
-| `GET /api/v1/users` | `user:view` | Paged account listing |
-| `POST /api/v1/users` | `user:create` | Create an account |
-| `GET /api/v1/users/{id}` | `user:view` | Account detail |
-| `PATCH /api/v1/users/{id}` | `user:update` | Rename and change roles |
-| `POST /api/v1/users/{id}/status` | `user:disable` | Enable/disable and revoke sessions |
-| `GET /api/v1/roles` | `role:view` | Roles and permissions |
+| `GET /api/v1/members` | `example.admin.member.view` | Paged members of the current workspace |
+| `GET /api/v1/members/{id}` | `example.admin.member.view` | Member detail |
+| `PATCH /api/v1/members/{id}` | `example.admin.member.update` | Rename and change local roles |
+| `POST /api/v1/members/{id}/status` | `example.admin.member.disable` | Enable/disable and revoke sessions |
+| `GET /api/v1/roles` | `example.admin.role.view` | Roles and permissions |
 | `GET /api/v1/platform-connection` | anonymous | Platform connectivity, boolean only |
 | `POST /launch` | anonymous (CSRF-exempt by contract) | Exchange a platform Launch code and establish a session |
 | `POST /integration/v1/app-instances` | `instance:provision` | Provision an instance |
@@ -163,7 +164,7 @@ Gradle properties when the repository requires authentication, and never commit 
 | `POST /integration/v1/app-instances/{id}/suspend` | `instance:suspend` | Suspend an instance |
 | `POST /integration/v1/app-instances/{id}/resume` | `instance:resume` | Resume an instance |
 | `DELETE /integration/v1/app-instances/{id}` | `instance:deprovision` | Deprovision an instance |
-| `GET POST PATCH /api/v1/notices` | `notice:view` / `notice:manage` | Sample domain: notices |
+| `GET POST PATCH /api/v1/notices` | `example.admin.notice.view` / `example.admin.notice.manage` | Sample domain: notices |
 
 Sign-in, Launch and error responses all return stable error codes (`EMAIL_ALREADY_REGISTERED`,
 `INVALID_CREDENTIALS`, `IDEMPOTENCY_CONFLICT`, …) as `application/problem+json` with a `code` field, so the
@@ -175,7 +176,8 @@ frontend can map them to copy.
   convention as the admin-design frontend. The server expands wildcards into concrete codes before
   authorising, so nothing is ever visible in the UI but rejected by the API.
 - **The session holds derived identity only**: `AdminSessionPrincipal` carries no platform token, Launch code,
-  client secret or full claims, and a local session never expires later than the platform context token's `exp`.
+  client secret or full claims; the absolute expiry comes from `admin.local.session-ttl`, the platform ticket
+  only proves the entry point, and member revocation converges within the validation window.
 - **Tenancy comes from the session only**: account, instance and workspace claims in request bodies, query
   strings or custom headers are never trusted.
 - **Platform entry points fail closed**: with `admin.platform.enabled=false` the Launch and lifecycle endpoints
@@ -191,8 +193,8 @@ frontend can map them to copy.
 src/main/java/app/runlume/admin/
 ├── AdminJavaApplication.java
 ├── access/                       Platform-integration owning module
-│   ├── WorkspaceView.java        Platform instance ↔ local workspace mapping
-│   ├── WorkspaceDirectory.java   Read-only port
+│   ├── WorkspaceView.java        Platform instance ↔ platform-sourced workspace mapping
+│   ├── WorkspaceDirectory.java   Read-only workspace port: platform mappings and local workspace status
 │   ├── WorkspaceLifecycle.java   Idempotent lifecycle command port
 │   ├── PlatformIntegrationProperties.java
 │   ├── identity/                 Named Interface "identity"
@@ -201,8 +203,7 @@ src/main/java/app/runlume/admin/
 │   │   ├── PermissionCatalog.java
 │   │   └── infrastructure/
 │   │       ├── SdkPlatformLaunchGateway.java    platform-integration-sdk-java adapter
-│   │       ├── ModuleServiceTokenProvider.java
-│   │       ├── PlatformConnectionProbe.java
+│   │       ├── SessionPipelineAdapters.java     the two SPIs of the session validity pipeline
 │   │       ├── security/                        security chain, session establishment and revocation
 │   │       └── web/                             session and account management API
 │   ├── observability/            Named Interface "observability"
@@ -253,6 +254,8 @@ browser or request parameters; the client secret comes only from the environment
 | `admin.platform.service-token-uri` / `service-client-id` / `service-client-secret` | `ADMIN_PLATFORM_SERVICE_*` | Module service identity token endpoint and credentials |
 | `admin.local.registration-enabled` | `ADMIN_REGISTRATION_ENABLED` | Allow self-service registration |
 | `admin.local.session-ttl` | `ADMIN_SESSION_TTL` | Absolute local session lifetime |
+| `platform.integration.session-validation.member-validation-enabled` | follows `ADMIN_PLATFORM_ENABLED` | Platform member validity check; off automatically without platform integration, where workspace status carries the tenant boundary |
+| `platform.integration.session-validation.read-window` / `write-window` | `ADMIN_PLATFORM_SESSION_CHECK_READ_WINDOW` / `..._WRITE_WINDOW` | Member-check cache windows; the upper bound on revocation latency |
 
 ### Phased onboarding
 

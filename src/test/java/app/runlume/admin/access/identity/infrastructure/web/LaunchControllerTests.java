@@ -69,6 +69,7 @@ class LaunchControllerTests {
         );
         AdminUserView user = new AdminUserView(
                 USER_ID,
+                WORKSPACE_ID,
                 "member@runlume.local",
                 "平台成员",
                 UserStatus.ACTIVE,

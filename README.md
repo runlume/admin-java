@@ -15,7 +15,8 @@
 接口契约：[docs/project/api.md](docs/project/api.md) · 文档：[docs/README.md](docs/README.md) · [English](README.en.md)
 
 与 [标准后台前端](https://github.com/runlume/admin-design) 配套的后端标准起点：默认接入
-`platform-integration-sdk-java` 的**最小接入**路径，自带**本地用户管理与登录**，业务系统只需要接自己的菜单与业务域。
+`platform-integration-sdk-java` 的**最小接入**路径，自带**本地用户管理、登录与本地工作区**，
+不接平台也能独立跑通租户隔离；业务系统只需要接自己的菜单与业务域。
 界面语言与视觉规范用 admin-design，接口契约、会话、权限、租户隔离与平台接入用这里的一份。
 
 Java 25 + Spring Boot 4.1 + Spring Security + PostgreSQL 18 + Flyway + jOOQ + Spring Modulith，
@@ -26,12 +27,14 @@ Java 25 + Spring Boot 4.1 + Spring Security + PostgreSQL 18 + Flyway + jOOQ + Sp
 | 能力 | 说明 |
 | --- | --- |
 | 本地账号 | 注册、登录、退出、当前用户、角色与权限码，BCrypt 口令，账号禁用即时撤销会话 |
+| 本地工作区 | 不接平台时由首个本地账号引导创建 `LOCAL` 工作区，本地账号据此正常使用租户业务数据 |
 | 服务端会话 | Spring Session JDBC + 不透明 Cookie，绝对过期时间，登录与 Launch 共用同一条建立路径 |
 | CSRF | Cookie + 请求头双提交，`GET /api/v1/csrf` 取令牌 |
-| 账号与角色管理 | 分页查询、新建、改名、改角色、启用/禁用（`user:*`、`role:*` 权限码） |
+| 账号与角色管理 | 当前工作区成员分页查询、改名、改本地角色、启用/禁用（`example.admin.member.*`、`example.admin.role.view`） |
 | 平台最小接入 | Launch 换码建会话、生命周期四命令（幂等）、平台联机探针、workspace 映射 |
 | 平台边界 | 生命周期入口按服务身份与 Scope 逐端点授权，运行时 Token 由 SDK 验签 |
-| 租户隔离 | 所有业务表带 workspace 维度，工作区标识只来自已认证会话 |
+| 会话复验 | 会话有效性管线（starter）：绝对过期 → 工作区状态 → 平台成员有效性 |
+| 租户隔离 | 工作区是本系统自有的租户容器（来源 `PLATFORM` 或 `LOCAL`），所有业务表带 workspace 维度，标识只来自已认证会话 |
 | 可观测性 | 服务端关联标识、非敏感审计、`application/problem+json` 稳定错误码 |
 | 示例业务域 | `notice`（公告）演示业务域与 `access` 模块的标准边界 |
 
@@ -142,12 +145,11 @@ jOOQ 类型每次生成都会新建临时 PostgreSQL 18 并完整迁移，不允
 | `POST /api/v1/auth/logout` | 会话 | 退出并失效服务端会话 |
 | `GET /api/v1/me` | 会话 | 当前用户、角色与权限码 |
 | `GET /api/v1/permissions` | 会话 | 内置权限目录 |
-| `GET /api/v1/users` | `user:view` | 分页查询账号 |
-| `POST /api/v1/users` | `user:create` | 新建账号 |
-| `GET /api/v1/users/{id}` | `user:view` | 账号详情 |
-| `PATCH /api/v1/users/{id}` | `user:update` | 改名与角色 |
-| `POST /api/v1/users/{id}/status` | `user:disable` | 启用/禁用并撤销会话 |
-| `GET /api/v1/roles` | `role:view` | 角色与权限 |
+| `GET /api/v1/members` | `example.admin.member.view` | 分页查询当前工作区成员 |
+| `GET /api/v1/members/{id}` | `example.admin.member.view` | 成员详情 |
+| `PATCH /api/v1/members/{id}` | `example.admin.member.update` | 改名与本地角色 |
+| `POST /api/v1/members/{id}/status` | `example.admin.member.disable` | 启用/禁用并撤销会话 |
+| `GET /api/v1/roles` | `example.admin.role.view` | 角色与权限 |
 | `GET /api/v1/platform-connection` | 匿名 | 平台联机状态，只返回布尔值 |
 | `POST /launch` | 匿名（契约豁免 CSRF） | 平台 Launch 换码并建立会话 |
 | `POST /integration/v1/app-instances` | `instance:provision` | 开通实例 |
@@ -155,7 +157,7 @@ jOOQ 类型每次生成都会新建临时 PostgreSQL 18 并完整迁移，不允
 | `POST /integration/v1/app-instances/{id}/suspend` | `instance:suspend` | 暂停实例 |
 | `POST /integration/v1/app-instances/{id}/resume` | `instance:resume` | 恢复实例 |
 | `DELETE /integration/v1/app-instances/{id}` | `instance:deprovision` | 注销实例 |
-| `GET POST PATCH /api/v1/notices` | `notice:view` / `notice:manage` | 示例业务域：公告 |
+| `GET POST PATCH /api/v1/notices` | `example.admin.notice.view` / `example.admin.notice.manage` | 示例业务域：公告 |
 
 登录、Launch 与错误响应都返回稳定的错误码（`EMAIL_ALREADY_REGISTERED`、`INVALID_CREDENTIALS`、
 `IDEMPOTENCY_CONFLICT` 等），响应体为 `application/problem+json` 且带 `code` 字段，便于前端映射文案。
@@ -165,7 +167,7 @@ jOOQ 类型每次生成都会新建临时 PostgreSQL 18 并完整迁移，不允
 - **权限码**：`*` 全部、`模块:*` 模块内全部、其余精确匹配，与 admin-design 前端一致。
   服务端把通配展开成具体权限码后再授权，避免"前端可见、后端拒绝"。
 - **会话只存派生身份**：`AdminSessionPrincipal` 不含平台 Token、Launch Code、Client Secret 或完整 Claims；
-  本地会话绝对过期不得晚于平台 Context Token 的 `exp`。
+  会话绝对过期取 `admin.local.session-ttl`，平台票据只证明进入时点，成员撤销由校验窗口收敛。
 - **租户只来自会话**：请求体、Query 与自定义 Header 中的 Account、实例与工作区声明一律不可信。
 - **平台入口失败关闭**：`admin.platform.enabled=false` 时 Launch 与生命周期入口整体拒绝，后台仍可独立运行。
 - **审计只追加终态事实**：Token、Secret、口令、完整载荷和原始请求不进审计表。
@@ -177,8 +179,8 @@ jOOQ 类型每次生成都会新建临时 PostgreSQL 18 并完整迁移，不允
 src/main/java/app/runlume/admin/
 ├── AdminJavaApplication.java
 ├── access/                       平台集成 owning module
-│   ├── WorkspaceView.java        平台实例与本地工作区映射
-│   ├── WorkspaceDirectory.java   只读入口
+│   ├── WorkspaceView.java        平台实例与平台来源工作区的映射
+│   ├── WorkspaceDirectory.java   工作区只读入口：平台映射与本地工作区状态
 │   ├── WorkspaceLifecycle.java   生命周期命令的幂等入口
 │   ├── PlatformIntegrationProperties.java
 │   ├── identity/                 Named Interface "identity"
@@ -186,9 +188,8 @@ src/main/java/app/runlume/admin/
 │   │   ├── AdminIdentity.java
 │   │   ├── PermissionCatalog.java
 │   │   └── infrastructure/
-│   │       ├── SdkPlatformLaunchGateway.java    platform-integration-sdk-java 适配器
-│   │       ├── ModuleServiceTokenProvider.java
-│   │       ├── PlatformConnectionProbe.java
+│   │       ├── SdkPlatformLaunchGateway.java      platform-integration-sdk-java 适配器
+│   │       ├── SessionPipelineAdapters.java       会话有效性管线的两个 SPI
 │   │       ├── security/                        安全链、会话建立、会话撤销
 │   │       └── web/                             会话与账号管理 API
 │   ├── observability/            Named Interface "observability"
@@ -236,6 +237,8 @@ docs/                             本项目文档与内置标准
 | `admin.platform.service-token-uri` / `service-client-id` / `service-client-secret` | `ADMIN_PLATFORM_SERVICE_*` | 模块服务身份令牌地址与凭据 |
 | `admin.local.registration-enabled` | `ADMIN_REGISTRATION_ENABLED` | 是否开放自助注册 |
 | `admin.local.session-ttl` | `ADMIN_SESSION_TTL` | 本地会话绝对有效期 |
+| `platform.integration.session-validation.member-validation-enabled` | 跟随 `ADMIN_PLATFORM_ENABLED` | 平台成员有效性校验；平台接入关闭时自动关闭，租户边界由工作区状态承担 |
+| `platform.integration.session-validation.read-window` / `write-window` | `ADMIN_PLATFORM_SESSION_CHECK_READ_WINDOW` / `..._WRITE_WINDOW` | 成员校验缓存窗口，决定撤销生效的延迟上限 |
 
 ### 分阶段接入
 

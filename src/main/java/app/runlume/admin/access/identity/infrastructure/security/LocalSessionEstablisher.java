@@ -41,6 +41,27 @@ public class LocalSessionEstablisher {
     }
 
     /**
+     * 为本地账号建立会话；账号已绑定工作区时把工作区写入主体。
+     *
+     * <p>本地工作区会话没有平台边界，因此不参与平台成员校验，租户隔离由工作区过滤保证。</p>
+     *
+     * @param user 账号视图
+     * @param localWorkspaceId 账号绑定的本地工作区；未绑定时传 null
+     * @param expiresAt 会话绝对过期时间
+     * @param request 当前请求
+     * @param response 当前响应
+     */
+    public void establish(
+            AdminUserView user,
+            UUID localWorkspaceId,
+            Instant expiresAt,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        establish(user, null, null, localWorkspaceId, 0L, expiresAt, request, response);
+    }
+
+    /**
      * 为账号建立新的本地会话。
      *
      * @param user 账号视图
@@ -60,10 +81,44 @@ public class LocalSessionEstablisher {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
+        establish(
+                user,
+                workspace,
+                platformUserId,
+                null,
+                membershipRevision,
+                expiresAt,
+                request,
+                response
+        );
+    }
+
+    /**
+     * 建立会话的公共实现。
+     *
+     * @param user 账号视图
+     * @param workspace 平台映射的工作区；本地会话为空
+     * @param platformUserId 平台用户标识；本地会话为空
+     * @param localWorkspaceId 本地账号绑定的工作区；平台会话为空
+     * @param membershipRevision 平台成员授权修订号；本地会话为 0
+     * @param expiresAt 会话绝对过期时间
+     * @param request 当前请求
+     * @param response 当前响应
+     */
+    private void establish(
+            AdminUserView user,
+            WorkspaceView workspace,
+            UUID platformUserId,
+            UUID localWorkspaceId,
+            long membershipRevision,
+            Instant expiresAt,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
         AdminSessionPrincipal principal = new AdminSessionPrincipal(
                 user.id(),
                 platformUserId,
-                workspace == null ? null : workspace.id(),
+                workspace == null ? localWorkspaceId : workspace.id(),
                 workspace == null ? null : workspace.platformAccountId(),
                 workspace == null ? null : workspace.platformAppInstanceId(),
                 user.email(),

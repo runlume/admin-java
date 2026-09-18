@@ -11,8 +11,10 @@
 - 所有写请求必须带 CSRF 令牌：先 `GET /api/v1/csrf`，再把返回的 `token` 放进
   `headerName` 指定的请求头（默认 `X-XSRF-TOKEN`）。
 - 未认证访问 `/api/**` 返回 `401`；已认证但权限不足返回 `403`。
-- 会话所属工作区被暂停或注销后，服务端在每个请求重新校验：id 不一致、工作区不存在或状态
-  不再是 `ACTIVE` 时立即失效会话并返回 `401`，前端应回到平台入口重新进入。
+- 会话所属工作区被暂停、停用或注销后，服务端在每个请求重新校验：id 不一致、工作区不存在或状态
+  不再是 `ACTIVE` 时立即失效会话并返回 `401`，前端应回到平台入口（或本地登录页）重新进入。
+- 本地账号直接登录，会话带该账号所属的本地工作区；不接平台独立运行时，首个注册账号注册成功时
+  即创建这个本地工作区，后续本地账号加入同一个工作区。
 - 响应头固定回传 `X-Request-Id`，可用于串联日志；请求可带同名头，但必须匹配
   `[A-Za-z0-9._:-]{8,120}` 才被采纳。
 
@@ -99,7 +101,7 @@
 | 方法与路径 | 权限 | 说明 |
 | --- | --- | --- |
 | `GET /api/v1/members?page=1&size=20&keyword=` | `example.admin.member.view` | 只列当前工作区成员，返回 `{items,total,page,size}` |
-| `GET /api/v1/members/{id}` | `example.admin.member.view` | 成员详情；跨工作区与本地运营会话固定 `404` |
+| `GET /api/v1/members/{id}` | `example.admin.member.view` | 成员详情；跨工作区与自举会话固定 `404` |
 | `PATCH /api/v1/members/{id}` | `example.admin.member.update` | `{displayName?,roles?}`，只改本地角色，平台派生管理员不受影响 |
 | `POST /api/v1/members/{id}/status` | `example.admin.member.disable` | `{"status":"ACTIVE"\|"DISABLED"}`，禁用同时撤销该成员全部会话 |
 | `GET /api/v1/roles` | `example.admin.role.view` | 角色与权限码 |
@@ -160,7 +162,7 @@
 
 | 方法与路径 | 权限 | 说明 |
 | --- | --- | --- |
-| `GET /api/v1/notices?page=&size=&status=` | `example.admin.notice.view` | 只返回当前工作区公告；无工作区会话返回 `403 WORKSPACE_REQUIRED` |
+| `GET /api/v1/notices?page=&size=&status=` | `example.admin.notice.view` | 只返回当前工作区公告；自举会话（无工作区）返回 `403 WORKSPACE_REQUIRED` |
 | `GET /api/v1/notices/{id}` | `example.admin.notice.view` | 公告详情 |
 | `POST /api/v1/notices` | `example.admin.notice.manage` | 新建草稿 |
 | `PATCH /api/v1/notices/{id}` | `example.admin.notice.manage` | 仅草稿可改，否则 `409 NOTICE_STATE_INVALID` |
@@ -181,7 +183,7 @@
 | `IDEMPOTENCY_CONFLICT` | 409 | 相同幂等键绑定不同请求 |
 | `APP_INSTANCE_ALREADY_REGISTERED` | 409 | 平台实例已被其它账号或模块占用 |
 | `NOTICE_STATE_INVALID` | 409 | 公告状态不允许该操作 |
-| `WORKSPACE_REQUIRED` | 403 | 当前会话没有工作区，不能访问租户业务数据 |
+| `WORKSPACE_REQUIRED` | 403 | 当前会话没有工作区（自举会话），不能访问租户业务数据 |
 | `ROLE_NOT_FOUND` / `LAUNCH_REJECTED` | 400 | 角色不存在 / 平台拒绝 Launch |
 | `LAUNCH_UNAVAILABLE` / `PLATFORM_UNAVAILABLE` | 503 | 平台或模块服务身份暂不可用 |
 

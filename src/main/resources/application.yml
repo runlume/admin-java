@@ -66,10 +66,6 @@ admin:
   # 所有平台地址只取本配置，浏览器与请求参数不能覆盖；Client Secret 只来自环境变量或密钥管理。
   platform:
     enabled: ${ADMIN_PLATFORM_ENABLED:false}
-    # 成员撤销窗口：写请求更短，读请求更长；撤销与角色变化在下一次窗口内生效。
-    session-check:
-      read-window: ${ADMIN_PLATFORM_SESSION_CHECK_READ_WINDOW:60s}
-      write-window: ${ADMIN_PLATFORM_SESSION_CHECK_WRITE_WINDOW:30s}
     module-id: ${ADMIN_PLATFORM_MODULE_ID:example.admin}
     base-uri: ${ADMIN_PLATFORM_BASE_URI:http://localhost:8080}
     runtime-issuer: ${ADMIN_PLATFORM_RUNTIME_ISSUER:http://localhost:8080}
@@ -87,8 +83,9 @@ admin:
     request-timeout: ${ADMIN_PLATFORM_REQUEST_TIMEOUT:5s}
 
 # 平台集成 Starter：SDK 组件（运行时客户端、令牌、探针、关联标识）与会话有效性管线由 starter
-# 自动装配；本模板通过 access.identity.infrastructure.PlatformSessionAdapters 提供会话边界与
-# 工作区读取两个 SPI。平台关闭时没有平台会话，管线随之关闭。
+# 自动装配；本模板通过 access.identity.infrastructure.SessionPipelineAdapters 提供会话边界与
+# 工作区读取两个 SPI。管线始终开启：平台会话走绝对过期、工作区状态与成员三层校验，本地工作区
+# 会话没有平台成员，只走前两层。
 platform:
   integration:
     enabled: ${ADMIN_PLATFORM_ENABLED:false}
@@ -102,7 +99,13 @@ platform:
     service-client-secret: ${ADMIN_PLATFORM_SERVICE_CLIENT_SECRET:}
     service-audience: ${ADMIN_PLATFORM_SERVICE_AUDIENCE:platform-integration-api}
     session-validation:
-      enabled: ${ADMIN_PLATFORM_ENABLED:false}
+      enabled: true
+      # 成员撤销窗口：写请求更短，读请求更长；撤销与角色变化在下一次窗口内生效。
+      read-window: ${ADMIN_PLATFORM_SESSION_CHECK_READ_WINDOW:60s}
+      write-window: ${ADMIN_PLATFORM_SESSION_CHECK_WRITE_WINDOW:30s}
+      # 成员校验依赖平台接入提供的会话校验客户端：平台接入关闭时显式关闭该层，避免启动失败，
+      # 租户边界此时由工作区状态承担。
+      member-validation-enabled: ${ADMIN_PLATFORM_ENABLED:false}
 
 logging:
   level:
