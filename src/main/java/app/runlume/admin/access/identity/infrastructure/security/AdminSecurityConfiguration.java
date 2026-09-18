@@ -1,6 +1,8 @@
 package app.runlume.admin.access.identity.infrastructure.security;
 
 import app.runlume.admin.access.PlatformIntegrationProperties;
+import app.runlume.admin.access.WorkspaceDirectory;
+import app.runlume.admin.access.identity.infrastructure.SessionValidationCache;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -97,6 +99,8 @@ public class AdminSecurityConfiguration {
      *
      * @param http Spring Security 构建器
      * @param securityContextRepository 会话上下文仓库
+     * @param workspaces 工作区读取入口，供逐请求复验使用
+     * @param sessionValidations 会话校验缓存，供成员撤销收敛使用
      * @param properties 平台接入配置
      * @param clock 判定时间源
      * @return 安全过滤链
@@ -107,6 +111,8 @@ public class AdminSecurityConfiguration {
     SecurityFilterChain adminSecurityFilterChain(
             HttpSecurity http,
             SecurityContextRepository securityContextRepository,
+            WorkspaceDirectory workspaces,
+            SessionValidationCache sessionValidations,
             PlatformIntegrationProperties properties,
             Clock clock
     ) throws Exception {
@@ -144,6 +150,14 @@ public class AdminSecurityConfiguration {
                 ))
                 .addFilterAfter(
                         new SessionAbsoluteExpiryFilter(clock),
+                        SecurityContextHolderFilter.class
+                )
+                .addFilterAfter(
+                        new WorkspaceAccessFilter(workspaces),
+                        SecurityContextHolderFilter.class
+                )
+                .addFilterAfter(
+                        new SessionValidationFilter(sessionValidations),
                         SecurityContextHolderFilter.class
                 );
         return http.build();

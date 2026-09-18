@@ -42,6 +42,14 @@ public class JdbcWorkspaceDirectory implements WorkspaceDirectory {
     }
 
     @Override
+    public Optional<WorkspaceView> find(UUID platformAccountId, UUID platformAppInstanceId) {
+        return dsl.selectFrom(ADMIN_WORKSPACE)
+                .where(ADMIN_WORKSPACE.PLATFORM_ACCOUNT_ID.eq(platformAccountId))
+                .and(ADMIN_WORKSPACE.PLATFORM_APP_INSTANCE_ID.eq(platformAppInstanceId))
+                .fetchOptional(JdbcWorkspaceDirectory::toView);
+    }
+
+    @Override
     public Optional<WorkspaceView> findByExternalInstanceId(String externalInstanceId) {
         return dsl.selectFrom(ADMIN_WORKSPACE)
                 .where(ADMIN_WORKSPACE.EXTERNAL_INSTANCE_ID.eq(externalInstanceId))

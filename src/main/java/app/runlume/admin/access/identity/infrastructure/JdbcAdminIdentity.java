@@ -8,6 +8,7 @@ import app.runlume.admin.access.identity.IdentityProblem;
 import app.runlume.admin.access.identity.PlatformLaunchIdentity;
 import app.runlume.admin.access.identity.UserStatus;
 import app.runlume.admin.access.identity.infrastructure.jooq.tables.records.AdminUserRecord;
+import app.runlume.platform.sdk.identity.InstanceRoles;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -44,6 +46,8 @@ public class JdbcAdminIdentity implements AdminIdentity {
     private static final String CREDENTIAL_PLATFORM = "PLATFORM";
     private static final String ROLE_ADMIN = "admin";
     private static final String ROLE_MEMBER = "member";
+    private static final String ROLE_SOURCE_LOCAL = "LOCAL";
+    private static final String ROLE_SOURCE_PLATFORM = "PLATFORM";
     private static final String REGISTRATION_LOCK = "admin-java.registration";
     private static final String PLATFORM_EMAIL_DOMAIN = "runlume.local";
     private static final String UNIQUE_VIOLATION = "23505";
@@ -68,8 +72,8 @@ public class JdbcAdminIdentity implements AdminIdentity {
         dsl.fetch("select pg_advisory_xact_lock(hashtext(?)::bigint)", REGISTRATION_LOCK);
         boolean firstAccount = dsl.fetchCount(ADMIN_USER) == 0;
         UUID userId = insertLocalUser(email, displayName, rawPassword);
-        assignRoles(userId, Set.of(firstAccount ? ROLE_ADMIN : ROLE_MEMBER));
-        return requireUser(userId);
+        replaceLocalRoles(userId, Set.of(firstAccount ? ROLE_ADMIN : ROLE_MEMBER));
+        return loadUser(userId);
     }
 
     @Override
@@ -81,8 +85,8 @@ public class JdbcAdminIdentity implements AdminIdentity {
             Set<String> roleCodes
     ) {
         UUID userId = insertLocalUser(email, displayName, rawPassword);
-        assignRoles(userId, roleCodes.isEmpty() ? Set.of(ROLE_MEMBER) : roleCodes);
-        return requireUser(userId);
+        replaceLocalRoles(userId, roleCodes.isEmpty() ? Set.of(ROLE_MEMBER) : roleCodes);
+        return loadUser(userId);
     }
 
     @Override
@@ -95,17 +99,24 @@ public class JdbcAdminIdentity implements AdminIdentity {
     }
 
     @Override
-    public Optional<AdminUserView> findUser(UUID userId) {
+    public Optional<AdminUserView> findUser(UUID workspaceId, UUID userId) {
         return dsl.selectFrom(ADMIN_USER)
                 .where(ADMIN_USER.ID.eq(userId))
+                .and(ADMIN_USER.WORKSPACE_ID.eq(workspaceId))
                 .fetchOptional()
                 .map(this::toView);
     }
 
     @Override
-    public List<AdminUserView> listUsers(int offset, int limit, String keyword) {
+    public List<AdminUserView> listUsers(
+            UUID workspaceId,
+            int offset,
+            int limit,
+            String keyword
+    ) {
         List<AdminUserRecord> records = dsl.selectFrom(ADMIN_USER)
-                .where(keywordCondition(keyword))
+                .where(ADMIN_USER.WORKSPACE_ID.eq(workspaceId))
+                .and(keywordCondition(keyword))
                 .orderBy(ADMIN_USER.CREATED_AT.desc(), ADMIN_USER.ID.asc())
                 .limit(Math.max(limit, 1))
                 .offset(Math.max(offset, 0))
@@ -114,53 +125,58 @@ public class JdbcAdminIdentity implements AdminIdentity {
     }
 
     @Override
-    public long countUsers(String keyword) {
-        return dsl.fetchCount(dsl.selectFrom(ADMIN_USER).where(keywordCondition(keyword)));
+    public long countUsers(UUID workspaceId, String keyword) {
+        return dsl.fetchCount(dsl.selectFrom(ADMIN_USER)
+                .where(ADMIN_USER.WORKSPACE_ID.eq(workspaceId))
+                .and(keywordCondition(keyword)));
     }
 
     @Override
     @Transactional
-    public AdminUserView renameUser(UUID userId, String displayName) {
+    public AdminUserView renameUser(UUID workspaceId, UUID userId, String displayName) {
         int updated = dsl.update(ADMIN_USER)
                 .set(ADMIN_USER.DISPLAY_NAME, displayName)
                 .set(ADMIN_USER.UPDATED_AT, OffsetDateTime.now())
                 .set(ADMIN_USER.VERSION, ADMIN_USER.VERSION.plus(1))
                 .where(ADMIN_USER.ID.eq(userId))
+                .and(ADMIN_USER.WORKSPACE_ID.eq(workspaceId))
                 .execute();
         if (updated == 0) {
             throw IdentityProblem.of(IdentityProblem.Code.USER_NOT_FOUND);
         }
-        return requireUser(userId);
+        return requireUser(workspaceId, userId);
     }
 
     @Override
     @Transactional
-    public AdminUserView changeStatus(UUID userId, UserStatus status) {
+    public AdminUserView changeStatus(UUID workspaceId, UUID userId, UserStatus status) {
         int updated = dsl.update(ADMIN_USER)
                 .set(ADMIN_USER.STATUS, status.name())
                 .set(ADMIN_USER.UPDATED_AT, OffsetDateTime.now())
                 .set(ADMIN_USER.VERSION, ADMIN_USER.VERSION.plus(1))
                 .where(ADMIN_USER.ID.eq(userId))
+                .and(ADMIN_USER.WORKSPACE_ID.eq(workspaceId))
                 .execute();
         if (updated == 0) {
             throw IdentityProblem.of(IdentityProblem.Code.USER_NOT_FOUND);
         }
-        return requireUser(userId);
+        return requireUser(workspaceId, userId);
     }
 
     @Override
     @Transactional
-    public AdminUserView changeRoles(UUID userId, Set<String> roleCodes) {
-        if (dsl.fetchCount(dsl.selectFrom(ADMIN_USER).where(ADMIN_USER.ID.eq(userId))) == 0) {
+    public AdminUserView changeRoles(UUID workspaceId, UUID userId, Set<String> roleCodes) {
+        if (findUser(workspaceId, userId).isEmpty()) {
             throw IdentityProblem.of(IdentityProblem.Code.USER_NOT_FOUND);
         }
-        assignRoles(userId, roleCodes.isEmpty() ? Set.of(ROLE_MEMBER) : roleCodes);
-        return requireUser(userId);
+        replaceLocalRoles(userId, roleCodes.isEmpty() ? Set.of(ROLE_MEMBER) : roleCodes);
+        return requireUser(workspaceId, userId);
     }
 
     @Override
     @Transactional
-    public AdminUserView upsertPlatformUser(PlatformLaunchIdentity launch) {
+    public AdminUserView upsertPlatformUser(PlatformLaunchIdentity launch, UUID workspaceId) {
+        Objects.requireNonNull(workspaceId, "workspaceId");
         String email = platformEmail(launch);
         Optional<AdminUserRecord> existing = dsl.selectFrom(ADMIN_USER)
                 .where(ADMIN_USER.PLATFORM_APP_INSTANCE_ID.eq(launch.platformAppInstanceId()))
@@ -170,11 +186,20 @@ public class JdbcAdminIdentity implements AdminIdentity {
             dsl.update(ADMIN_USER)
                     .set(ADMIN_USER.EMAIL, email)
                     .set(ADMIN_USER.DISPLAY_NAME, launch.displayName())
+                    .set(
+                            ADMIN_USER.MEMBERSHIP_REVISION,
+                            Math.max(
+                                    existing.get().getMembershipRevision(),
+                                    launch.membershipRevision()
+                            )
+                    )
+                    .set(ADMIN_USER.WORKSPACE_ID, workspaceId)
                     .set(ADMIN_USER.UPDATED_AT, OffsetDateTime.now())
                     .set(ADMIN_USER.VERSION, ADMIN_USER.VERSION.plus(1))
                     .where(ADMIN_USER.ID.eq(existing.get().getId()))
                     .execute();
-            return requireUser(existing.get().getId());
+            syncPlatformRoles(existing.get().getId(), platformRoleCodes(launch));
+            return loadUser(existing.get().getId());
         }
         AdminUserRecord record = dsl.newRecord(ADMIN_USER);
         record.setId(UUID.randomUUID());
@@ -184,11 +209,15 @@ public class JdbcAdminIdentity implements AdminIdentity {
         record.setPlatformUserId(launch.platformUserId());
         record.setPlatformAccountId(launch.platformAccountId());
         record.setPlatformAppInstanceId(launch.platformAppInstanceId());
+        record.setWorkspaceId(workspaceId);
+        record.setMembershipRevision(launch.membershipRevision());
         record.setStatus(UserStatus.ACTIVE.name());
         record.setVersion(0L);
         record.store();
-        assignRoles(record.getId(), Set.of(ROLE_MEMBER));
-        return requireUser(record.getId());
+        // 平台成员首次建档时显式分配内置 member，而不是依赖隐式放行。
+        replaceLocalRoles(record.getId(), Set.of(ROLE_MEMBER));
+        syncPlatformRoles(record.getId(), platformRoleCodes(launch));
+        return loadUser(record.getId());
     }
 
     @Override
@@ -251,7 +280,34 @@ public class JdbcAdminIdentity implements AdminIdentity {
         return record.getId();
     }
 
-    private void assignRoles(UUID userId, Set<String> roleCodes) {
+    /**
+     * 整体替换本地角色授予，保留平台派生授予。
+     */
+    private void replaceLocalRoles(UUID userId, Set<String> roleCodes) {
+        Map<String, UUID> roleIds = requireRoleIds(roleCodes);
+        dsl.deleteFrom(ADMIN_USER_ROLE)
+                .where(ADMIN_USER_ROLE.USER_ID.eq(userId))
+                .and(ADMIN_USER_ROLE.SOURCE.eq(ROLE_SOURCE_LOCAL))
+                .execute();
+        insertRoleLinks(userId, roleIds.values(), ROLE_SOURCE_LOCAL);
+    }
+
+    /**
+     * 用当前实例角色同步平台派生授予；平台撤销 SAAS_ADMIN 后不再保留管理员。
+     */
+    private void syncPlatformRoles(UUID userId, Set<String> roleCodes) {
+        Map<String, UUID> roleIds = requireRoleIds(roleCodes);
+        dsl.deleteFrom(ADMIN_USER_ROLE)
+                .where(ADMIN_USER_ROLE.USER_ID.eq(userId))
+                .and(ADMIN_USER_ROLE.SOURCE.eq(ROLE_SOURCE_PLATFORM))
+                .execute();
+        insertRoleLinks(userId, roleIds.values(), ROLE_SOURCE_PLATFORM);
+    }
+
+    private Map<String, UUID> requireRoleIds(Set<String> roleCodes) {
+        if (roleCodes.isEmpty()) {
+            return Map.of();
+        }
         Map<String, UUID> roleIds = dsl.select(ADMIN_ROLE.CODE, ADMIN_ROLE.ID)
                 .from(ADMIN_ROLE)
                 .where(ADMIN_ROLE.CODE.in(roleCodes))
@@ -259,21 +315,40 @@ public class JdbcAdminIdentity implements AdminIdentity {
         if (roleIds.size() != roleCodes.size()) {
             throw IdentityProblem.of(IdentityProblem.Code.ROLE_NOT_FOUND);
         }
-        dsl.deleteFrom(ADMIN_USER_ROLE)
-                .where(ADMIN_USER_ROLE.USER_ID.eq(userId))
-                .execute();
-        roleIds.values().forEach(roleId -> {
+        return roleIds;
+    }
+
+    private void insertRoleLinks(UUID userId, Collection<UUID> roleIds, String source) {
+        roleIds.forEach(roleId -> {
             var link = dsl.newRecord(ADMIN_USER_ROLE);
             link.setUserId(userId);
             link.setRoleId(roleId);
+            link.setSource(source);
             link.store();
         });
     }
 
-    private AdminUserView requireUser(UUID userId) {
-        return findUser(userId).orElseThrow(
+    /**
+     * 平台实例角色到本地内置角色的派生：SAAS_ADMIN 固定派生内置管理员。
+     */
+    private static Set<String> platformRoleCodes(PlatformLaunchIdentity launch) {
+        return InstanceRoles.hasAdministrator(launch.roles())
+                ? Set.of(ROLE_ADMIN)
+                : Set.of();
+    }
+
+    private AdminUserView requireUser(UUID workspaceId, UUID userId) {
+        return findUser(workspaceId, userId).orElseThrow(
                 () -> IdentityProblem.of(IdentityProblem.Code.USER_NOT_FOUND)
         );
+    }
+
+    private AdminUserView loadUser(UUID userId) {
+        return dsl.selectFrom(ADMIN_USER)
+                .where(ADMIN_USER.ID.eq(userId))
+                .fetchOptional()
+                .map(this::toView)
+                .orElseThrow(() -> IdentityProblem.of(IdentityProblem.Code.USER_NOT_FOUND));
     }
 
     private List<AdminUserView> assemble(List<AdminUserRecord> records) {

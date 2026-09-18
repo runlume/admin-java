@@ -40,7 +40,7 @@ class AdminIdentityTests extends PostgresTestSupport {
 
         AdminUserView second = identity.register("second@runlume.local", "次位", "runlume-password");
         assertThat(second.roles()).containsExactly("member");
-        assertThat(second.permissions()).contains("notice:view");
+        assertThat(second.permissions()).contains("example.admin.notice.view");
     }
 
     @Test

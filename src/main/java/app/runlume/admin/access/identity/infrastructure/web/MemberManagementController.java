@@ -1,6 +1,7 @@
 package app.runlume.admin.access.identity.infrastructure.web;
 
 import app.runlume.admin.access.identity.AdminIdentity;
+import app.runlume.admin.access.identity.AdminSessionPrincipal;
 import app.runlume.admin.access.identity.AdminUserView;
 import app.runlume.admin.access.identity.IdentityProblem;
 import app.runlume.admin.access.identity.UserStatus;
@@ -11,9 +12,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,16 +29,17 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 账号与角色管理入口。
+ * 工作区成员与本地角色管理入口。
  *
- * <p>每个端点都要求对应的具体权限码；禁用账号时同时撤销该账号的全部既有会话。</p>
+ * <p>所有端点都以当前会话的工作区为边界：列表、详情与写入只能作用于本工作区成员，
+ * 平台派生的管理员角色不在这里增删。禁用成员时同时撤销该成员的全部既有会话。</p>
  *
  * @author 树深技术
  * @since 0.1 at 2026/9/18 10:50
  */
 @RestController
 @RequestMapping("/api/v1")
-public class UserManagementController {
+public class MemberManagementController {
 
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -53,7 +54,7 @@ public class UserManagementController {
      * @param sessionRevocation 会话撤销器
      * @param auditLog 审计入口
      */
-    public UserManagementController(
+    public MemberManagementController(
             AdminIdentity identity,
             AdminSessionRevocation sessionRevocation,
             AdminAuditLog auditLog
@@ -64,30 +65,37 @@ public class UserManagementController {
     }
 
     /**
-     * 分页查询账号。
+     * 分页查询当前工作区成员。
      *
      * @param page 页码，从 1 开始
      * @param size 每页条数
      * @param keyword 邮箱或名称关键字
+     * @param principal 当前会话主体；只列该工作区的成员
      * @return 分页结果
      */
-    @GetMapping("/users")
-    @PreAuthorize("hasAuthority('user:view')")
-    public UserListResponse listUsers(
+    @GetMapping("/members")
+    @PreAuthorize("hasAuthority('example.admin.member.view')")
+    public MemberListResponse listMembers(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String keyword
+            @RequestParam(required = false) String keyword,
+            @AuthenticationPrincipal AdminSessionPrincipal principal
     ) {
         int safePage = Math.max(page, 1);
         int safeSize = Math.clamp(size, 1, MAX_PAGE_SIZE);
-        List<UserResponse> items = identity
-                .listUsers((safePage - 1) * safeSize, safeSize, keyword)
+        List<MemberResponse> items = identity
+                .listUsers(
+                        principal.workspaceId(),
+                        (safePage - 1) * safeSize,
+                        safeSize,
+                        keyword
+                )
                 .stream()
-                .map(UserResponse::from)
+                .map(MemberResponse::from)
                 .toList();
-        return new UserListResponse(
+        return new MemberListResponse(
                 items,
-                identity.countUsers(keyword),
+                identity.countUsers(principal.workspaceId(), keyword),
                 safePage,
                 safeSize
         );
@@ -96,106 +104,89 @@ public class UserManagementController {
     /**
      * 读取单个账号。
      *
-     * @param id 账号标识
+     * @param id 成员标识
+     * @param principal 当前会话主体；只能读取本工作区成员
      * @return 账号信息
      */
-    @GetMapping("/users/{id}")
-    @PreAuthorize("hasAuthority('user:view')")
-    public UserResponse getUser(@PathVariable UUID id) {
-        return identity.findUser(id)
-                .map(UserResponse::from)
+    @GetMapping("/members/{id}")
+    @PreAuthorize("hasAuthority('example.admin.member.view')")
+    public MemberResponse getMember(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal AdminSessionPrincipal principal
+    ) {
+        return identity.findUser(principal.workspaceId(), id)
+                .map(MemberResponse::from)
                 .orElseThrow(() -> IdentityProblem.of(IdentityProblem.Code.USER_NOT_FOUND));
     }
 
     /**
-     * 创建账号。
+     * 修改成员展示名称与本地角色。
      *
-     * @param body 创建请求
-     * @return 新账号信息
-     */
-    @PostMapping("/users")
-    @PreAuthorize("hasAuthority('user:create')")
-    public ResponseEntity<UserResponse> createUser(
-            @Valid @RequestBody CreateUserRequest body
-    ) {
-        AdminUserView user = identity.createUser(
-                body.email(),
-                body.displayName(),
-                body.password(),
-                body.roles() == null ? Set.of() : body.roles()
-        );
-        auditLog.record(new AuditEntry(
-                AuditEntry.ActorType.USER,
-                null,
-                "user.create",
-                "user",
-                user.id().toString(),
-                null,
-                AuditEntry.Outcome.SUCCESS
-        ));
-        return ResponseEntity.status(HttpStatus.CREATED).body(UserResponse.from(user));
-    }
-
-    /**
-     * 修改账号展示名称与角色。
-     *
-     * @param id 账号标识
+     * @param id 成员标识
+     * @param principal 当前会话主体；只能修改本工作区成员
      * @param body 修改请求
-     * @return 更新后的账号信息
+     * @return 更新后的成员信息
      */
-    @PatchMapping("/users/{id}")
-    @PreAuthorize("hasAuthority('user:update')")
-    public UserResponse updateUser(
+    @PatchMapping("/members/{id}")
+    @PreAuthorize("hasAuthority('example.admin.member.update')")
+    public MemberResponse updateMember(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateUserRequest body
+            @Valid @RequestBody UpdateMemberRequest body,
+            @AuthenticationPrincipal AdminSessionPrincipal principal
     ) {
-        AdminUserView user = identity.findUser(id)
+        AdminUserView user = identity.findUser(principal.workspaceId(), id)
                 .orElseThrow(() -> IdentityProblem.of(IdentityProblem.Code.USER_NOT_FOUND));
         if (body.displayName() != null && !body.displayName().isBlank()) {
-            user = identity.renameUser(id, body.displayName());
+            user = identity.renameUser(principal.workspaceId(), id, body.displayName());
         }
         if (body.roles() != null) {
-            user = identity.changeRoles(id, body.roles());
+            user = identity.changeRoles(principal.workspaceId(), id, body.roles());
         }
         auditLog.record(new AuditEntry(
                 AuditEntry.ActorType.USER,
                 null,
-                "user.update",
-                "user",
+                "member.update",
+                "member",
                 id.toString(),
-                null,
+                principal.workspaceId(),
                 AuditEntry.Outcome.SUCCESS
         ));
-        return UserResponse.from(user);
+        return MemberResponse.from(user);
     }
 
     /**
      * 启用或禁用账号，禁用时立即撤销该账号的全部会话。
      *
-     * @param id 账号标识
+     * @param id 成员标识
+     * @param principal 当前会话主体；只能启用或禁用本工作区成员
      * @param body 状态请求
-     * @return 更新后的账号信息
+     * @return 更新后的成员信息
      */
-    @PostMapping("/users/{id}/status")
-    @PreAuthorize("hasAuthority('user:disable')")
-    public UserResponse changeStatus(
+    @PostMapping("/members/{id}/status")
+    @PreAuthorize("hasAuthority('example.admin.member.disable')")
+    public MemberResponse changeStatus(
             @PathVariable UUID id,
-            @Valid @RequestBody ChangeStatusRequest body
+            @Valid @RequestBody ChangeMemberStatusRequest body,
+            @AuthenticationPrincipal AdminSessionPrincipal principal
     ) {
-        AdminUserView user = identity.changeStatus(id, body.status());
+        AdminUserView user = identity.changeStatus(
+                principal.workspaceId(),
+                id,
+                body.status()
+        );
         if (body.status() == UserStatus.DISABLED) {
             sessionRevocation.revokeAll(user.email());
         }
         auditLog.record(new AuditEntry(
                 AuditEntry.ActorType.USER,
                 null,
-                "user.status",
-                "user",
+                "member.status",
+                "member",
                 id.toString(),
-                null,
+                principal.workspaceId(),
                 AuditEntry.Outcome.SUCCESS
         ));
-        return UserResponse.from(user);
+        return MemberResponse.from(user);
     }
 
     /**
@@ -221,7 +212,7 @@ public class UserManagementController {
      * @param createdAt 创建时间
      * @param lastLoginAt 最近登录时间
      */
-    public record UserResponse(
+    public record MemberResponse(
             String id,
             String email,
             String displayName,
@@ -238,8 +229,8 @@ public class UserManagementController {
          * @param user 账号视图
          * @return 账号信息
          */
-        public static UserResponse from(AdminUserView user) {
-            return new UserResponse(
+        public static MemberResponse from(AdminUserView user) {
+            return new MemberResponse(
                     user.id().toString(),
                     user.email(),
                     user.displayName(),
@@ -260,7 +251,12 @@ public class UserManagementController {
      * @param page 当前页码
      * @param size 每页条数
      */
-    public record UserListResponse(List<UserResponse> items, long total, int page, int size) {
+    public record MemberListResponse(
+            List<MemberResponse> items,
+            long total,
+            int page,
+            int size
+    ) {
     }
 
     /**
@@ -303,39 +299,23 @@ public class UserManagementController {
     }
 
     /**
-     * 创建账号请求。
-     *
-     * @param email 登录邮箱
-     * @param displayName 展示名称
-     * @param password 明文口令
-     * @param roles 角色码，可为空
-     */
-    public record CreateUserRequest(
-            @NotBlank @Email @Size(max = 320) String email,
-            @NotBlank @Size(max = 200) String displayName,
-            @NotBlank @Size(min = 12, max = 200) String password,
-            Set<String> roles
-    ) {
-    }
-
-    /**
-     * 修改账号请求。
+     * 修改成员请求。
      *
      * @param displayName 新展示名称，可为空
-     * @param roles 新角色集合，可为空
+     * @param roles 新的本地角色集合，可为空；平台派生角色不在这里增删
      */
-    public record UpdateUserRequest(
+    public record UpdateMemberRequest(
             @Size(max = 200) String displayName,
             Set<String> roles
     ) {
     }
 
     /**
-     * 修改账号状态请求。
+     * 修改成员状态请求。
      *
      * @param status 目标状态
      */
-    public record ChangeStatusRequest(
+    public record ChangeMemberStatusRequest(
             @jakarta.validation.constraints.NotNull UserStatus status
     ) {
     }

@@ -14,6 +14,7 @@ import java.util.UUID;
  * @param displayName 展示名称
  * @param email 邮箱，平台可能不提供
  * @param roles 实例内平台角色
+ * @param membershipRevision 实例成员授权修订号
  * @param expiresAt Context Token 的绝对过期时间
  * @param actionPath 平台固化的可选站内目标路径
  * @author 树深技术
@@ -26,6 +27,7 @@ public record PlatformLaunchIdentity(
         String displayName,
         String email,
         List<String> roles,
+        long membershipRevision,
         Instant expiresAt,
         String actionPath
 ) {

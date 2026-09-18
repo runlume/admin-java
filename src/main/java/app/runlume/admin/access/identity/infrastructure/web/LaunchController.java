@@ -30,7 +30,11 @@ import java.util.regex.Pattern;
  *
  * <p>平台以跨站表单把 Code 提交到本入口，因此本端点按契约豁免 CSRF。Code 只出现在表单
  * Body 中，不写入日志、审计或会话；校验由平台集成 SDK 完成，本控制器只负责把已验证身份
- * 映射为本地账号、检查 workspace 状态并建立不晚于 Context Token {@code exp} 的会话。</p>
+ * 映射为本地账号、检查 workspace 状态并建立本地会话。</p>
+ *
+ * <p>会话寿命取本地配置的绝对时长，不再压缩到 Context Token 的 {@code exp}：短票据只证明
+ * 进入时点，之后由 {@code SessionValidationFilter} 按声明的校验窗口持续确认成员仍然有效，
+ * 撤销窗口因此由窗口而非会话时长决定。</p>
  *
  * @author 树深技术
  * @since 0.1 at 2026/9/18 10:50
@@ -102,12 +106,16 @@ public class LaunchController {
                 .orElseThrow(() -> WorkspaceProblem.of(
                         WorkspaceProblem.Code.WORKSPACE_NOT_ACTIVE
                 ));
-        AdminUserView user = identity.upsertPlatformUser(launch);
-        Instant expiresAt = earliest(
-                Instant.now(clock).plus(properties.sessionTtl()),
-                launch.expiresAt()
+        AdminUserView user = identity.upsertPlatformUser(launch, workspace.id());
+        Instant expiresAt = Instant.now(clock).plus(properties.sessionTtl());
+        sessionEstablisher.establish(
+                user,
+                workspace,
+                launch.membershipRevision(),
+                expiresAt,
+                request,
+                response
         );
-        sessionEstablisher.establish(user, workspace.id(), expiresAt, request, response);
         auditLog.record(new AuditEntry(
                 AuditEntry.ActorType.PLATFORM,
                 launch.platformUserId().toString(),
@@ -120,10 +128,6 @@ public class LaunchController {
         return ResponseEntity.status(HttpStatus.SEE_OTHER)
                 .location(actionPath(launch.actionPath()))
                 .build();
-    }
-
-    private static Instant earliest(Instant first, Instant second) {
-        return first.isBefore(second) ? first : second;
     }
 
     private static URI actionPath(String actionPath) {

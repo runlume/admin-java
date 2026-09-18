@@ -16,10 +16,13 @@ import java.util.UUID;
  *
  * @param userId 本地账号标识
  * @param workspaceId 平台 Launch 映射出的本地工作区；本地自有账号为空
+ * @param platformAccountId 平台 Account 标识；本地自有账号为空
+ * @param platformAppInstanceId 平台 AppInstance 标识；本地自有账号为空
  * @param email 登录邮箱
  * @param displayName 展示名称
  * @param roles 本地角色码
  * @param permissions 权限码原始集合；`*` 表示全部，`模块:*` 表示模块内全部
+ * @param membershipRevision 平台成员授权修订号；本地自有账号为 0
  * @param expiresAt 会话绝对过期时间
  * @author 树深技术
  * @since 0.1 at 2026/9/18 09:50
@@ -27,10 +30,13 @@ import java.util.UUID;
 public record AdminSessionPrincipal(
         UUID userId,
         UUID workspaceId,
+        UUID platformAccountId,
+        UUID platformAppInstanceId,
         String email,
         String displayName,
         Set<String> roles,
         Set<String> permissions,
+        long membershipRevision,
         Instant expiresAt
 ) implements Serializable, Principal {
 
@@ -38,13 +44,27 @@ public record AdminSessionPrincipal(
     private static final long serialVersionUID = 1L;
 
     /**
-     * 固化身份字段并拒绝缺失的过期时间。
+     * 固化身份字段，并要求工作区与平台边界同时存在或同时缺失。
      */
     public AdminSessionPrincipal {
         Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(email, "email");
         Objects.requireNonNull(displayName, "displayName");
         Objects.requireNonNull(expiresAt, "expiresAt");
+        if (membershipRevision < 0) {
+            throw new IllegalArgumentException("Membership revision must not be negative.");
+        }
+        boolean platformSession = workspaceId != null
+                && platformAccountId != null
+                && platformAppInstanceId != null;
+        boolean localSession = workspaceId == null
+                && platformAccountId == null
+                && platformAppInstanceId == null;
+        if (!platformSession && !localSession) {
+            throw new IllegalArgumentException(
+                    "Workspace, platform account and app instance must be present together."
+            );
+        }
         roles = Set.copyOf(roles);
         permissions = Set.copyOf(permissions);
     }

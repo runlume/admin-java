@@ -21,6 +21,15 @@ public interface WorkspaceDirectory {
     Optional<WorkspaceView> findByAppInstance(UUID platformAppInstanceId);
 
     /**
+     * 按完整平台边界读取映射，供会话建立与逐请求复验使用。
+     *
+     * @param platformAccountId 平台 Account 标识
+     * @param platformAppInstanceId 平台 AppInstance 标识
+     * @return 映射视图
+     */
+    Optional<WorkspaceView> find(UUID platformAccountId, UUID platformAppInstanceId);
+
+    /**
      * 按对平台暴露的不透明实例标识读取映射。
      *
      * @param externalInstanceId 不透明实例标识

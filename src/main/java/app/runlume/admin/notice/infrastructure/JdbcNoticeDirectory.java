@@ -39,6 +39,7 @@ public class JdbcNoticeDirectory implements NoticeDirectory {
 
     @Override
     public List<Notice> list(int offset, int limit, NoticeStatus status, UUID workspaceId) {
+        requireWorkspace(workspaceId);
         return dsl.selectFrom(ADMIN_NOTICE)
                 .where(visibleTo(workspaceId).and(statusFilter(status)))
                 .orderBy(ADMIN_NOTICE.CREATED_AT.desc(), ADMIN_NOTICE.ID.asc())
@@ -49,12 +50,14 @@ public class JdbcNoticeDirectory implements NoticeDirectory {
 
     @Override
     public long count(NoticeStatus status, UUID workspaceId) {
+        requireWorkspace(workspaceId);
         return dsl.fetchCount(dsl.selectFrom(ADMIN_NOTICE)
                 .where(visibleTo(workspaceId).and(statusFilter(status))));
     }
 
     @Override
     public Optional<Notice> find(UUID id, UUID workspaceId) {
+        requireWorkspace(workspaceId);
         return dsl.selectFrom(ADMIN_NOTICE)
                 .where(ADMIN_NOTICE.ID.eq(id).and(visibleTo(workspaceId)))
                 .fetchOptional(JdbcNoticeDirectory::toView);
@@ -63,6 +66,7 @@ public class JdbcNoticeDirectory implements NoticeDirectory {
     @Override
     @Transactional
     public Notice create(String title, String body, UUID workspaceId, UUID authorId) {
+        requireWorkspace(workspaceId);
         AdminNoticeRecord record = dsl.newRecord(ADMIN_NOTICE);
         record.setId(UUID.randomUUID());
         record.setTitle(title);
@@ -124,12 +128,17 @@ public class JdbcNoticeDirectory implements NoticeDirectory {
         );
     }
 
-    private static Condition visibleTo(UUID workspaceId) {
+    /**
+     * 租户业务数据只属于工作区：没有工作区的会话（本地运营账号）一律拒绝。
+     */
+    private static void requireWorkspace(UUID workspaceId) {
         if (workspaceId == null) {
-            return ADMIN_NOTICE.WORKSPACE_ID.isNull();
+            throw NoticeProblem.of(NoticeProblem.Code.WORKSPACE_REQUIRED);
         }
-        return ADMIN_NOTICE.WORKSPACE_ID.isNull()
-                .or(ADMIN_NOTICE.WORKSPACE_ID.eq(workspaceId));
+    }
+
+    private static Condition visibleTo(UUID workspaceId) {
+        return ADMIN_NOTICE.WORKSPACE_ID.eq(workspaceId);
     }
 
     private static Condition statusFilter(NoticeStatus status) {

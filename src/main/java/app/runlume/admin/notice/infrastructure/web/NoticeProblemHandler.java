@@ -34,10 +34,12 @@ public class NoticeProblemHandler {
     public ResponseEntity<ProblemDetail> handle(NoticeProblem failure) {
         String code = failure.code().name();
         HttpStatus status = switch (failure.code()) {
+            case WORKSPACE_REQUIRED -> HttpStatus.FORBIDDEN;
             case NOTICE_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case NOTICE_STATE_INVALID -> HttpStatus.CONFLICT;
         };
         String detail = switch (failure.code()) {
+            case WORKSPACE_REQUIRED -> "当前会话没有工作区，不能访问业务数据";
             case NOTICE_NOT_FOUND -> "公告不存在";
             case NOTICE_STATE_INVALID -> "当前公告状态不允许该操作";
         };

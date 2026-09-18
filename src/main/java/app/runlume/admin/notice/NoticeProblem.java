@@ -44,6 +44,8 @@ public final class NoticeProblem extends RuntimeException {
      * 公告失败分类。
      */
     public enum Code {
+        /** 当前会话没有工作区，租户业务域拒绝读写。 */
+        WORKSPACE_REQUIRED,
         /** 公告不存在或不在当前工作区可见范围内。 */
         NOTICE_NOT_FOUND,
         /** 公告状态不允许该操作。 */

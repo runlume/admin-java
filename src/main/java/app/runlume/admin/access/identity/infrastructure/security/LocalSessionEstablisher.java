@@ -1,5 +1,6 @@
 package app.runlume.admin.access.identity.infrastructure.security;
 
+import app.runlume.admin.access.WorkspaceView;
 import app.runlume.admin.access.identity.AdminSessionPrincipal;
 import app.runlume.admin.access.identity.AdminUserView;
 import app.runlume.admin.access.identity.PermissionCatalog;
@@ -14,7 +15,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 建立服务端本地会话。
@@ -43,25 +43,30 @@ public class LocalSessionEstablisher {
      * 为账号建立新的本地会话。
      *
      * @param user 账号视图
-     * @param workspaceId 本地工作区标识；本地自有账号传 null
+     * @param workspace 会话绑定的工作区；本地自有账号传 null
+     * @param membershipRevision 平台成员授权修订号；本地自有账号传 0
      * @param expiresAt 会话绝对过期时间
      * @param request 当前请求
      * @param response 当前响应
      */
     public void establish(
             AdminUserView user,
-            UUID workspaceId,
+            WorkspaceView workspace,
+            long membershipRevision,
             Instant expiresAt,
             HttpServletRequest request,
             HttpServletResponse response
     ) {
         AdminSessionPrincipal principal = new AdminSessionPrincipal(
                 user.id(),
-                workspaceId,
+                workspace == null ? null : workspace.id(),
+                workspace == null ? null : workspace.platformAccountId(),
+                workspace == null ? null : workspace.platformAppInstanceId(),
                 user.email(),
                 user.displayName(),
                 user.roles(),
                 user.permissions(),
+                membershipRevision,
                 expiresAt
         );
         List<SimpleGrantedAuthority> authorities = PermissionCatalog

@@ -1,6 +1,6 @@
 package app.runlume.admin.access.identity.infrastructure.web;
 
-import app.runlume.admin.access.identity.infrastructure.PlatformConnectionProbe;
+import app.runlume.platform.sdk.identity.PlatformConnectionProbe;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

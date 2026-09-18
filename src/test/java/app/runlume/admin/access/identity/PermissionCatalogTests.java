@@ -22,9 +22,15 @@ class PermissionCatalogTests {
 
     @Test
     void moduleWildcardOnlyCoversItsOwnModule() {
-        assertThat(PermissionCatalog.grants(Set.of("user:*"), PermissionCatalog.USER_UPDATE))
+        assertThat(PermissionCatalog.grants(
+                Set.of(PermissionCatalog.NAMESPACE + ".member.*"),
+                PermissionCatalog.MEMBER_UPDATE
+        ))
                 .isTrue();
-        assertThat(PermissionCatalog.grants(Set.of("user:*"), PermissionCatalog.ROLE_VIEW))
+        assertThat(PermissionCatalog.grants(
+                Set.of(PermissionCatalog.NAMESPACE + ".member.*"),
+                PermissionCatalog.ROLE_VIEW
+        ))
                 .isFalse();
     }
 
@@ -33,7 +39,7 @@ class PermissionCatalogTests {
         Set<String> expanded = PermissionCatalog.expand(Set.of("*"));
         assertThat(expanded).doesNotContain("*");
         assertThat(expanded).contains(
-                PermissionCatalog.USER_UPDATE,
+                PermissionCatalog.MEMBER_UPDATE,
                 PermissionCatalog.NOTICE_MANAGE,
                 PermissionCatalog.PLATFORM_VIEW
         );
@@ -47,8 +53,8 @@ class PermissionCatalogTests {
 
     @Test
     void validatesCodeFormat() {
-        assertThat(PermissionCatalog.isValidCode("user:view")).isTrue();
-        assertThat(PermissionCatalog.isValidCode("user:*")).isTrue();
+        assertThat(PermissionCatalog.isValidCode("example.admin.member.view")).isTrue();
+        assertThat(PermissionCatalog.isValidCode("example.admin.member.*")).isTrue();
         assertThat(PermissionCatalog.isValidCode("*")).isTrue();
         assertThat(PermissionCatalog.isValidCode("User:View")).isFalse();
         assertThat(PermissionCatalog.isValidCode("")).isFalse();

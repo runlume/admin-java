@@ -66,7 +66,7 @@ public class NoticeController {
      * @return 分页结果
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('notice:view')")
+    @PreAuthorize("hasAuthority('example.admin.notice.view')")
     public NoticeListResponse list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -96,7 +96,7 @@ public class NoticeController {
      * @return 公告信息
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('notice:view')")
+    @PreAuthorize("hasAuthority('example.admin.notice.view')")
     public NoticeResponse get(
             @PathVariable UUID id,
             @AuthenticationPrincipal AdminSessionPrincipal principal
@@ -114,7 +114,7 @@ public class NoticeController {
      * @return 新公告
      */
     @PostMapping
-    @PreAuthorize("hasAuthority('notice:manage')")
+    @PreAuthorize("hasAuthority('example.admin.notice.manage')")
     public ResponseEntity<NoticeResponse> create(
             @Valid @RequestBody CreateNoticeRequest body,
             @AuthenticationPrincipal AdminSessionPrincipal principal
@@ -146,7 +146,7 @@ public class NoticeController {
      * @return 更新后的公告
      */
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAuthority('notice:manage')")
+    @PreAuthorize("hasAuthority('example.admin.notice.manage')")
     public NoticeResponse update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateNoticeRequest body,
@@ -179,7 +179,7 @@ public class NoticeController {
      * @return 更新后的公告
      */
     @PostMapping("/{id}/status")
-    @PreAuthorize("hasAuthority('notice:manage')")
+    @PreAuthorize("hasAuthority('example.admin.notice.manage')")
     public NoticeResponse changeStatus(
             @PathVariable UUID id,
             @Valid @RequestBody ChangeNoticeStatusRequest body,

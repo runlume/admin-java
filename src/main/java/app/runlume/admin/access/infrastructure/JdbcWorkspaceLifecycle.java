@@ -11,13 +11,10 @@ import org.jooq.exception.DataAccessException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
-import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
+import app.runlume.platform.sdk.idempotency.IdempotencyDigest;
 
 import static app.runlume.admin.access.infrastructure.jooq.tables.AdminLifecycleOperation.ADMIN_LIFECYCLE_OPERATION;
 import static app.runlume.admin.access.infrastructure.jooq.tables.AdminWorkspace.ADMIN_WORKSPACE;
@@ -35,8 +32,6 @@ import static app.runlume.admin.access.infrastructure.jooq.tables.AdminWorkspace
 public class JdbcWorkspaceLifecycle implements WorkspaceLifecycle {
 
     private static final String UNIQUE_VIOLATION = "23505";
-    private static final String SEPARATOR = "\u001f";
-
     private final DSLContext dsl;
 
     /**
@@ -51,7 +46,7 @@ public class JdbcWorkspaceLifecycle implements WorkspaceLifecycle {
     @Override
     @Transactional
     public LifecycleOperationView provision(ProvisionRequest request, String idempotencyKey) {
-        String digest = digest(
+        String digest = IdempotencyDigest.of(
                 "PROVISION",
                 request.platformAccountId().toString(),
                 request.platformAppInstanceId().toString(),
@@ -132,7 +127,7 @@ public class JdbcWorkspaceLifecycle implements WorkspaceLifecycle {
             String idempotencyKey,
             WorkspaceStatus target
     ) {
-        String digest = digest(command, externalInstanceId);
+        String digest = IdempotencyDigest.of(command, externalInstanceId);
         Optional<AdminLifecycleOperationRecord> replay = findOperationByKey(idempotencyKey);
         if (replay.isPresent()) {
             return replay(replay.get(), digest);
@@ -224,16 +219,4 @@ public class JdbcWorkspaceLifecycle implements WorkspaceLifecycle {
         );
     }
 
-    private static String digest(String... parts) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            for (String part : parts) {
-                digest.update(part.getBytes(StandardCharsets.UTF_8));
-                digest.update(SEPARATOR.getBytes(StandardCharsets.UTF_8));
-            }
-            return HexFormat.of().formatHex(digest.digest());
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is required by the Java platform.", exception);
-        }
-    }
 }
