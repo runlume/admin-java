@@ -1,4 +1,8 @@
--- Runlume 标准后台后端基线：服务端会话、本地身份、角色权限、平台工作区映射、生命周期操作、审计与示例业务域。
+-- Runlume 标准后台后端基线：服务端会话、本地身份、角色权限、工作区、生命周期操作、审计与示例业务域。
+--
+-- 本文件是收缩后的 Schema 基线：后补的列、约束、索引与注释都已回灌到首次建表，不再保留
+-- "先建不完整表再用 ALTER 补齐" 的中间态。空库执行本文件与 V002 种子后，Schema 与种子数据
+-- 等价于收缩前的 V001–V007 链。
 
 -- ---------------------------------------------------------------------------
 -- Spring Session JDBC：浏览器只持有不透明会话 Cookie，服务端保存会话事实。
@@ -35,6 +39,60 @@ CREATE TABLE public.spring_session_attributes (
 COMMENT ON TABLE public.spring_session_attributes IS 'Spring Session 会话的序列化属性';
 
 -- ---------------------------------------------------------------------------
+-- 工作区：所有业务数据的租户隔离根，来源分 PLATFORM（平台开通）与 LOCAL（本系统自建）。
+-- 先建本表，账号与示例业务域的归属外键才能在建表时就位。
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE public.admin_workspace (
+    id uuid NOT NULL,
+    platform_account_id uuid,
+    platform_app_instance_id uuid,
+    module_key character varying(120),
+    module_version character varying(64),
+    external_instance_id character varying(120),
+    status character varying(32) NOT NULL,
+    version bigint DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT transaction_timestamp() NOT NULL,
+    updated_at timestamp with time zone DEFAULT transaction_timestamp() NOT NULL,
+    suspended_at timestamp with time zone,
+    deprovisioned_at timestamp with time zone,
+    source character varying(16) DEFAULT 'PLATFORM' NOT NULL,
+    CONSTRAINT admin_workspace_pk PRIMARY KEY (id),
+    CONSTRAINT admin_workspace_id_app_instance_uk UNIQUE (id, platform_app_instance_id),
+    CONSTRAINT admin_workspace_app_instance_uk UNIQUE (platform_app_instance_id),
+    CONSTRAINT admin_workspace_external_uk UNIQUE (external_instance_id),
+    CONSTRAINT admin_workspace_status_ck CHECK (
+        status IN ('ACTIVE', 'SUSPENDED', 'DEPROVISIONING', 'DEPROVISIONED')
+    ),
+    CONSTRAINT admin_workspace_version_ck CHECK (version >= 0),
+    CONSTRAINT admin_workspace_source_ck CHECK (
+        (
+            source = 'PLATFORM'
+            AND platform_account_id IS NOT NULL
+            AND platform_app_instance_id IS NOT NULL
+            AND module_key IS NOT NULL
+            AND module_version IS NOT NULL
+        )
+        OR (
+            source = 'LOCAL'
+            AND platform_account_id IS NULL
+            AND platform_app_instance_id IS NULL
+            AND module_key IS NULL
+            AND module_version IS NULL
+            AND external_instance_id IS NULL
+        )
+    )
+);
+
+COMMENT ON TABLE public.admin_workspace IS '平台 AppInstance 与本系统 workspace 的一对一映射，是所有业务数据的租户隔离根';
+
+COMMENT ON COLUMN public.admin_workspace.external_instance_id IS '返回给平台的不透明实例标识，平台不得解析其结构';
+
+COMMENT ON COLUMN public.admin_workspace.status IS 'SUSPENDED 必须阻止新会话与每次业务写，而不只是隐藏入口';
+
+COMMENT ON COLUMN public.admin_workspace.source IS '工作区来源：PLATFORM 由平台实例开通创建，LOCAL 由本系统自建';
+
+-- ---------------------------------------------------------------------------
 -- 本地身份：业务系统自己持有的账号、角色与权限。
 -- ---------------------------------------------------------------------------
 
@@ -52,12 +110,15 @@ CREATE TABLE public.admin_user (
     created_at timestamp with time zone DEFAULT transaction_timestamp() NOT NULL,
     updated_at timestamp with time zone DEFAULT transaction_timestamp() NOT NULL,
     last_login_at timestamp with time zone,
+    membership_revision bigint DEFAULT 0 NOT NULL,
+    workspace_id uuid,
     CONSTRAINT admin_user_pk PRIMARY KEY (id),
     CONSTRAINT admin_user_email_ck CHECK (
         email = lower(email) AND email ~ '^[^[:space:]@]+@[^[:space:]@]+$'
     ),
     CONSTRAINT admin_user_status_ck CHECK (status IN ('ACTIVE', 'DISABLED')),
     CONSTRAINT admin_user_version_ck CHECK (version >= 0),
+    CONSTRAINT admin_user_membership_revision_ck CHECK (membership_revision >= 0),
     CONSTRAINT admin_user_credential_ck CHECK (
         (
             credential_source = 'LOCAL'
@@ -73,7 +134,33 @@ CREATE TABLE public.admin_user (
             AND platform_account_id IS NOT NULL
             AND platform_app_instance_id IS NOT NULL
         )
-    )
+    ),
+    -- 账号形状：平台账号必须绑定工作区，本地账号可以绑定自有工作区，也可以还没有（自举）。
+    CONSTRAINT admin_user_identity_shape_ck CHECK (
+        (
+            credential_source = 'LOCAL'
+            AND password_hash IS NOT NULL
+            AND platform_user_id IS NULL
+            AND platform_account_id IS NULL
+            AND platform_app_instance_id IS NULL
+        )
+        OR (
+            credential_source = 'PLATFORM'
+            AND password_hash IS NULL
+            AND platform_user_id IS NOT NULL
+            AND platform_account_id IS NOT NULL
+            AND platform_app_instance_id IS NOT NULL
+            AND workspace_id IS NOT NULL
+        )
+    ),
+    -- 平台账号的工作区必须与其平台实例映射一致；本地账号因平台实例为空不受复合外键约束。
+    CONSTRAINT admin_user_workspace_instance_fk FOREIGN KEY (
+        workspace_id,
+        platform_app_instance_id
+    ) REFERENCES public.admin_workspace (id, platform_app_instance_id),
+    -- 本地账号的工作区归属需要独立外键：复合外键在本地账号上不生效。
+    CONSTRAINT admin_user_workspace_fk FOREIGN KEY (workspace_id)
+        REFERENCES public.admin_workspace (id)
 );
 
 COMMENT ON TABLE public.admin_user IS '本地后台账号；LOCAL 为自有密码账号，PLATFORM 为平台 Launch 映射出的影子账号';
@@ -88,6 +175,12 @@ COMMENT ON COLUMN public.admin_user.status IS 'DISABLED 时拒绝登录并立即
 
 COMMENT ON COLUMN public.admin_user.version IS '并发更新使用的乐观锁版本';
 
+COMMENT ON COLUMN public.admin_user.membership_revision IS
+    '平台实例成员授权修订号；本地自有账号固定为 0，平台映射账号只允许单调递增';
+
+COMMENT ON COLUMN public.admin_user.workspace_id IS
+    '平台账号所属本地工作区；本地运营账号为 NULL，且必须与其平台实例映射一致';
+
 -- 只有自有口令账号才要求邮箱唯一：平台映射账号的身份唯一性由
 -- (platform_app_instance_id, platform_user_id) 保证，允许同名邮箱并存，避免
 -- 平台 Launch 与本地账号因邮箱碰撞而互相接管。
@@ -98,6 +191,9 @@ CREATE UNIQUE INDEX admin_user_local_email_uk
 CREATE UNIQUE INDEX admin_user_platform_uk
     ON public.admin_user (platform_app_instance_id, platform_user_id)
     WHERE platform_user_id IS NOT NULL;
+
+CREATE INDEX admin_user_workspace_ix
+    ON public.admin_user USING btree (workspace_id);
 
 CREATE TABLE public.admin_role (
     id uuid NOT NULL,
@@ -127,56 +223,36 @@ CREATE TABLE public.admin_role_permission (
     CONSTRAINT admin_role_permission_role_fk FOREIGN KEY (role_id)
         REFERENCES public.admin_role (id) ON DELETE CASCADE,
     CONSTRAINT admin_role_permission_code_ck CHECK (
-        permission_code ~ '^(\*|[a-z][a-z0-9-]*)(:(\*|[a-z0-9-]+))*$'
+        permission_code ~ '^(\*|[a-z0-9]+(\.[a-z0-9]+){2,}(\.\*)?)$'
     )
 );
 
 COMMENT ON TABLE public.admin_role_permission IS '角色授予的权限码；`*` 表示全部，`模块:*` 表示模块内全部';
 
+COMMENT ON COLUMN public.admin_role_permission.permission_code IS
+    '权限码：`*` 表示全部，`<命名空间>.<资源>.*` 表示资源内全部，其余精确匹配';
+
 CREATE TABLE public.admin_user_role (
     user_id uuid NOT NULL,
     role_id uuid NOT NULL,
     assigned_at timestamp with time zone DEFAULT transaction_timestamp() NOT NULL,
+    source character varying(16) DEFAULT 'LOCAL' NOT NULL,
     CONSTRAINT admin_user_role_pk PRIMARY KEY (user_id, role_id),
     CONSTRAINT admin_user_role_user_fk FOREIGN KEY (user_id)
         REFERENCES public.admin_user (id) ON DELETE CASCADE,
     CONSTRAINT admin_user_role_role_fk FOREIGN KEY (role_id)
-        REFERENCES public.admin_role (id) ON DELETE CASCADE
+        REFERENCES public.admin_role (id) ON DELETE CASCADE,
+    CONSTRAINT admin_user_role_source_ck CHECK (source IN ('LOCAL', 'PLATFORM'))
 );
 
 COMMENT ON TABLE public.admin_user_role IS '用户与本地角色的多对多授权';
 
+COMMENT ON COLUMN public.admin_user_role.source IS
+    '授予来源：PLATFORM 由实例角色派生且本地不可移除，LOCAL 由本地分配';
+
 -- ---------------------------------------------------------------------------
--- 平台工作区映射：platform AppInstance 与本系统 workspace 的一对一映射。
+-- 平台生命周期命令的幂等记录。
 -- ---------------------------------------------------------------------------
-
-CREATE TABLE public.admin_workspace (
-    id uuid NOT NULL,
-    platform_account_id uuid NOT NULL,
-    platform_app_instance_id uuid NOT NULL,
-    module_key character varying(120) NOT NULL,
-    module_version character varying(64) NOT NULL,
-    external_instance_id character varying(120) NOT NULL,
-    status character varying(32) NOT NULL,
-    version bigint DEFAULT 0 NOT NULL,
-    created_at timestamp with time zone DEFAULT transaction_timestamp() NOT NULL,
-    updated_at timestamp with time zone DEFAULT transaction_timestamp() NOT NULL,
-    suspended_at timestamp with time zone,
-    deprovisioned_at timestamp with time zone,
-    CONSTRAINT admin_workspace_pk PRIMARY KEY (id),
-    CONSTRAINT admin_workspace_app_instance_uk UNIQUE (platform_app_instance_id),
-    CONSTRAINT admin_workspace_external_uk UNIQUE (external_instance_id),
-    CONSTRAINT admin_workspace_status_ck CHECK (
-        status IN ('ACTIVE', 'SUSPENDED', 'DEPROVISIONING', 'DEPROVISIONED')
-    ),
-    CONSTRAINT admin_workspace_version_ck CHECK (version >= 0)
-);
-
-COMMENT ON TABLE public.admin_workspace IS '平台 AppInstance 与本系统 workspace 的一对一映射，是所有业务数据的租户隔离根';
-
-COMMENT ON COLUMN public.admin_workspace.external_instance_id IS '返回给平台的不透明实例标识，平台不得解析其结构';
-
-COMMENT ON COLUMN public.admin_workspace.status IS 'SUSPENDED 必须阻止新会话与每次业务写，而不只是隐藏入口';
 
 CREATE TABLE public.admin_lifecycle_operation (
     id uuid NOT NULL,

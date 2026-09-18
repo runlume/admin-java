@@ -43,6 +43,9 @@
 ## 4. 数据库 Profile
 
 - 迁移目录固定为 `src/main/resources/db/migration/`，命名为 `VNNN__owner_bounded_purpose.sql`。
+- 当前基线为 `V001__baseline.sql`（Schema）与 `V002__built_in_roles.sql`（角色与权限码种子），
+  新变更从 `V003` 起分配；2026-09-18 执行过一次授权的基线收缩，映射与等价验证见
+  [project/migration-baseline.md](project/migration-baseline.md)。
 - PostgreSQL 固定 18.x；涉及 PostgreSQL 行为的测试使用真实 PostgreSQL，不以 H2 替代。
 - Flyway Versioned SQL 是 Schema 唯一真源；已共享的 Migration 不修改、删除、重命名、复用或 `repair`，
   错误用更高版本前向修复。

@@ -12,6 +12,7 @@
 | [project/api.md](project/api.md) | 接口契约、错误码、状态语义与 CSRF 使用方式 |
 | [project/platform-integration.md](project/platform-integration.md) | 本仓库实现的最小接入契约：Launch、生命周期、两类 Token、联机探针 |
 | [project/platform-capabilities.md](project/platform-capabilities.md) | 平台开放能力与 SDK 接口：有哪些能力、入口在哪、接入前置 |
+| [project/migration-baseline.md](project/migration-baseline.md) | 迁移基线的当前形状、基线收缩映射与空库等价验证 |
 | [project/template.md](project/template.md) | 作为模板复制时的改动清单与验收项 |
 
 ## 2. 内置标准
