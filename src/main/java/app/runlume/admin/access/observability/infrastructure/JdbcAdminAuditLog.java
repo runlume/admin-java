@@ -2,7 +2,7 @@ package app.runlume.admin.access.observability.infrastructure;
 
 import app.runlume.admin.access.observability.AdminAuditLog;
 import app.runlume.admin.access.observability.AuditEntry;
-import app.runlume.admin.access.observability.RequestCorrelation;
+import app.runlume.platform.starter.RequestCorrelationFilter;
 import app.runlume.admin.access.observability.infrastructure.jooq.tables.records.AdminAuditEventRecord;
 import org.jooq.DSLContext;
 import org.springframework.stereotype.Repository;
@@ -56,7 +56,9 @@ public class JdbcAdminAuditLog implements AdminAuditLog {
     private static String currentCorrelationId() {
         if (RequestContextHolder.getRequestAttributes()
                 instanceof ServletRequestAttributes attributes) {
-            return RequestCorrelation.current(attributes.getRequest()).orElse(null);
+            return (String) attributes.getRequest().getAttribute(
+                    RequestCorrelationFilter.ATTRIBUTE
+            );
         }
         return null;
     }

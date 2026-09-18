@@ -86,6 +86,25 @@ admin:
     connect-timeout: ${ADMIN_PLATFORM_CONNECT_TIMEOUT:5s}
     request-timeout: ${ADMIN_PLATFORM_REQUEST_TIMEOUT:5s}
 
+# 平台集成 Starter：SDK 组件（运行时客户端、令牌、探针、关联标识）由 starter 自动装配，
+# 本模板不再手写这部分装配代码。
+# session-validation 暂时关闭：本模板仍使用自己的工作区复验与会话校验过滤器；
+# 完整切换需要把 platformUserId 放进会话主体，供 starter 的会话边界使用。
+platform:
+  integration:
+    enabled: ${ADMIN_PLATFORM_ENABLED:false}
+    base-uri: ${ADMIN_PLATFORM_BASE_URI:http://localhost:8080}
+    module-id: ${ADMIN_PLATFORM_MODULE_ID:example.admin}
+    runtime-issuer: ${ADMIN_PLATFORM_RUNTIME_ISSUER:http://localhost:8080}
+    runtime-jwks-uri: ${ADMIN_PLATFORM_RUNTIME_JWKS_URI:http://localhost:8080/integration/v1/.well-known/jwks.json}
+    runtime-audience: ${ADMIN_PLATFORM_RUNTIME_AUDIENCE:example.admin}
+    service-token-uri: ${ADMIN_PLATFORM_SERVICE_TOKEN_URI:http://localhost:8081/realms/runlume/protocol/openid-connect/token}
+    service-client-id: ${ADMIN_PLATFORM_SERVICE_CLIENT_ID:admin-java}
+    service-client-secret: ${ADMIN_PLATFORM_SERVICE_CLIENT_SECRET:}
+    service-audience: ${ADMIN_PLATFORM_SERVICE_AUDIENCE:platform-integration-api}
+    session-validation:
+      enabled: false
+
 logging:
   level:
     root: INFO

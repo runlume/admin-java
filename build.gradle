@@ -38,7 +38,7 @@ dependencies {
 	implementation 'org.postgresql:postgresql'
 	implementation platform(libs.spring.modulith.bom)
 	implementation libs.spring.modulith.api
-	implementation libs.platform.integration.sdk.java
+	implementation libs.platform.integration.spring.boot.starter
 
 	jooqCodegenImplementation 'org.flywaydb:flyway-core'
 	jooqCodegenImplementation 'org.flywaydb:flyway-database-postgresql'
