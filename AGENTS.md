@@ -8,8 +8,7 @@
 
 - 这里只放**后端标准**：本地身份与会话、角色权限、平台最小接入、租户隔离、
   可观测性与错误契约。
-- 不放平台控制面能力（Account 定价、订阅、Capability 网关、统一通知中心）。
-  业务系统是仓库外的独立系统，不能跨库查询平台或其它 SaaS。
+- 不放平台控制面的能力。业务系统是仓库外的独立系统，不能跨库查询平台或其它 SaaS。
 - 业务域示例（`notice`）只用于演示边界，不能沉淀成通用业务模型。
 - 不引入未声明消费者的抽象：出现真实用例再增加端口与适配器。
 
@@ -26,8 +25,7 @@
   Query 或自定义 Header 读取。
 - 会话、Token、Launch Code、Client Secret、口令与完整载荷不得写入日志、审计或响应。
 - 新增 Controller 或错误码时同步 `docs/project/api.md`。
-- 平台接入的接口契约看 `docs/project/platform-integration.md`；平台专有的完整接入标准
-  不在本仓库，需要时到平台仓库查阅，禁止把平台内部实现与规划复制进来。
+- 平台接入的接口契约看 `docs/project/platform-integration.md`；
 
 ## 验证
 

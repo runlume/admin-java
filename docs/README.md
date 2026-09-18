@@ -1,8 +1,7 @@
 # 文档索引
 
 本目录分两部分：**本项目文档**（`project/`）描述 admin-java 自己的结构与契约；
-**内置标准**（`standards/development/`）是从企业私有仓库复制的**通用**开发规范。
-平台专有的接入标准不随本仓库公开，原因见第 2.2 节。
+**内置标准**（`standards/development/`）是与产品无关、可以直接采用的**通用**开发规范。
 
 ## 1. 本项目文档
 
@@ -18,9 +17,8 @@
 
 ### 2.1 通用开发规范 `standards/development/`
 
-来源：平台仓库 `docs/development/`，复制时版本 `58446303`。这一套与产品无关、不含平台专有信息，
-可以随本仓库公开。它强制适用于本仓库的全部 Java、Gradle、Flyway SQL、OpenAPI 与 Git 改动，
-入口是 [standards/development/README.md](standards/development/README.md)。重点：
+这一套与产品无关、不含平台专有信息。它强制适用于本仓库的全部 Java、Gradle、Flyway SQL、
+OpenAPI 与 Git 改动，入口是 [standards/development/README.md](standards/development/README.md)。重点：
 
 | 文档 | 何时必读 |
 | --- | --- |
@@ -35,44 +33,14 @@
 
 其余为设计原则与模式选型规范，按需查阅。
 
-本目录唯一的裁剪：平台原第 14 项《前端组件使用规范》未收录。它面向已下线的
-Vue / Fantastic Admin 基座，与现行 React + shadcn/ui 前端无关，而本仓库是纯后端交付物。
-前端组件规范以 [admin-design](https://github.com/runlume/admin-design) 为准。
+本目录唯一的裁剪：《前端组件使用规范》未收录。它面向已下线的 Vue 基座后台，
+与现行 React + shadcn/ui 前端无关，而本仓库是纯后端交付物。前端组件规范以
+[admin-design](https://github.com/runlume/admin-design) 为准。
 
-### 2.2 平台接入标准不随本仓库公开
+平台侧的设计与内部实现不进入本仓库，接入契约由本仓库自己维护，见
+[project/platform-integration.md](project/platform-integration.md)。
 
-平台原有的《SaaS 基座设计、平台能力与业务系统接入》《业务系统平台集成 access 模块标准》
-《业务系统登录页平台联机状态接入指南》《业务系统版本与能力契约升级规范》《项目开发约束 Profile》
-**没有复制进本仓库**，原因有两条：
-
-1. 它们来自私有仓库 `runlume/platform`，正文包含平台内部信息：控制面的模块全集、关键并发路径的
-   内部类与方法名、数据库基线收缩历史、内部测试与约束名，以及产品线命名、商业化边界和阶段路线。
-   本仓库是公开仓库，不适合承载这些内容。
-2. 其中大部分篇幅描述的是**完整接入**（资源与用量、平台 AI、跨系统能力调用、事件、统一通知、
-   文件与私有化 License），而本仓库只实现最小接入，收录反而误导使用者。
-
-本仓库实际实现的接入面由自己维护，见
-[project/platform-integration.md](project/platform-integration.md)。需要完整标准时在平台仓库内
-按文档名查阅，不要从本仓库转引。
-
-## 3. 同步通用开发规范
-
-在平台仓库更新通用规范后：
-
-```bash
-cd admin-java
-cp ../platform/docs/development/*.md docs/standards/development/
-rm -f docs/standards/development/frontend-component-guidelines.md
-```
-
-`rm` 是刻意的：平台仍保留面向旧 Vue 基座的《前端组件使用规范》，本仓库不收录它；
-若平台已删除该文件，这一步是无害的空操作。`standards/development/README.md` 的 1.1 节
-是本套副本唯一的本地改动，其余文件与平台仓库逐字一致。
-
-平台接入标准不在同步范围内。若通用规范正文引入了指向平台专有文档的跨仓库链接，
-在本仓库只保留文字、不带入链接目标，不要为此复制平台文档。
-
-## 4. 本项目固定值
+## 3. 本项目固定值
 
 本项目自己的固定值写在 [project-development-profile.md](project-development-profile.md)，
 不引用也不复制平台 Profile。通用规范要求每个采用项目维护一份自己的 Profile，本文件即为那一份。

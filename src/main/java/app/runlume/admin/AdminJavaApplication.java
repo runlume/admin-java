@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 /**
  * Runlume 标准后台后端启动类。
  *
- * <p>顶层包结构遵循业务系统 access 模块标准：{@code access} 是平台集成 owning module，
+ * <p>顶层包结构按平台集成模块组织：{@code access} 是平台集成 owning module，
  * 业务域与它是兄弟包，只能通过 Named Interface 访问身份与会话事实。</p>
  *
  * @author 树深技术

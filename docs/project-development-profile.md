@@ -94,5 +94,5 @@ export TESTCONTAINERS_RYUK_DISABLED=true
 
 | 例外 | 原因 | 移除条件 |
 | --- | --- | --- |
-| `application.yml` 排除 Deployment License 自动配置 | 该自动配置要求业务系统提供启动解析器与上下文，缺失时直接启动失败；REMOTE 接入按契约不需要 Deployment License | 交付客户可自行运行的私有化镜像并按文档提供 `forge.license.*` 与 `license.bin` 时删除该排除项 |
+| `application.yml` 排除 Deployment License 自动配置 | 该自动配置要求业务系统提供启动解析器与上下文，缺失时直接启动失败；REMOTE 接入按契约不需要 Deployment License | 交付客户可自行运行的私有化镜像并按 License 要求提供配置时删除该排除项 |
 | 显式声明 Spring Session 的 `CookieSerializer` | Spring Session 先注册 `CookieHttpSessionIdResolver`，使 Boot 会话自动配置不再构建 `CookieSerializer`，`server.servlet.session.cookie.*` 失效 | Boot 或 Spring Session 修正该条件顺序、且回归验证表明配置生效后移除 |

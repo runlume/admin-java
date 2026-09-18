@@ -31,7 +31,7 @@
    `LifecycleController.ProvisionRequest` 与 `admin_workspace` 列类型。
 3. `SUSPENDED` 的业务写拦截要落到每个写路径，不能只挡登录。示例中的做法是把工作区状态
    放进会话并在仓储层再次校验。
-4. 需要资源、AI、Capability 或 Event 时，按平台仓库的完整接入标准增加端口与适配器，
+4. 需要资源、AI、Capability 或 Event 时，按平台侧的完整接入标准增加端口与适配器，
    **不要**在 `access` 里预留空实现。
 
 ## 3. 与 admin-design 对接

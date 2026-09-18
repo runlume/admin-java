@@ -76,8 +76,7 @@ curl -b jar -c jar -X POST http://localhost:8080/api/v1/auth/register \
 ./gradlew bootRun      # run locally
 ```
 
-The integration tests and jOOQ code generation need a container runtime. On macOS with Podman, the same setup
-as the platform repository:
+The integration tests and jOOQ code generation need a container runtime. On macOS with Podman:
 
 ```bash
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
@@ -219,12 +218,12 @@ browser or request parameters; the client secret comes only from the environment
 This template implements the **minimal** integration: unified provisioning and sign-in. When resource, AI,
 capability or cross-SaaS data requirements appear, check the boundary against the
 [platform integration contract](docs/project/platform-integration.md) and enable capabilities one at a time
-from the full integration standard in the platform repository — never build empty implementations up front.
+from the platform's full integration standard — never build empty implementations up front.
 
 The Spring Boot Deployment License auto-configuration is explicitly excluded in this template: REMOTE onboarding
 does not require a business SaaS to hold or verify a Deployment License. When you ship a private image that
 customers run themselves, remove the `spring.autoconfigure.exclude` entry in `application.yml` and supply the
-configuration described by the license runtime-gate documentation.
+license configuration it requires.
 
 ## Documentation
 
@@ -233,7 +232,7 @@ configuration described by the license runtime-gate documentation.
 - [docs/project/api.md](docs/project/api.md): API contract, error codes and state semantics
 - [docs/project/template.md](docs/project/template.md): checklist for copying the template
 - [docs/project/platform-integration.md](docs/project/platform-integration.md): the minimal integration contract this repository implements
-- [docs/standards/](docs/standards/): bundled generic engineering standards; platform-specific integration standards are not published here (with reasons)
+- [docs/standards/](docs/standards/): bundled generic engineering standards
 
 ## License
 

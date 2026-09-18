@@ -1,7 +1,7 @@
 # 架构与边界
 
 > 平台接入的接口契约见 [platform-integration.md](platform-integration.md)。
-> 完整接入标准保存在平台仓库（私有），本仓库不转引。
+> 平台侧的完整接入标准由平台侧维护，本仓库不转引。
 
 ## 1. 定位
 
@@ -89,9 +89,9 @@ app.runlume.admin
 | 入站生命周期鉴权 | `access.infrastructure.security.LifecycleSecurityConfiguration` | 独立安全链，按 Scope 逐端点授权 |
 | 生命周期幂等 | `access.infrastructure.JdbcWorkspaceLifecycle` | 幂等键 + 请求摘要，冲突返回 409 |
 
-对应关系：`runtime_*` 面向用户上下文 Token（`token_use=instance_context`，由 SDK 验签）；
-`service_*` / `lifecycle-audience` 面向平台调用的生命周期服务 Token（Keycloak client_credentials，
-由独立资源服务器链校验 Issuer、Audience 与 Scope）。两套 Issuer/JWKS 不能混用。
+对应关系：`runtime_*` 面向用户上下文 Token，由 SDK 验签；`service_*` / `lifecycle-audience`
+面向平台调用的生命周期服务 Token，由独立资源服务器链校验 Issuer、Audience 与 Scope。
+两套 Issuer/JWKS 不能混用。
 
 `admin.platform.enabled=false` 时：Launch 入口由 `DisabledPlatformLaunchGateway` 失败关闭，
 生命周期入口由 `LifecycleDisabledSecurityConfiguration` 整体拒绝。

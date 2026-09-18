@@ -23,24 +23,11 @@
 
 ## 1.1 不属于本目录的规范
 
-本目录只收录与具体产品无关、任何项目都能直接采用的规范。平台把下列规范放在别处，
-它们带有平台或业务系统的具体模型、模块与阶段信息，不作为通用规范：
+本目录只收录与具体产品无关、任何项目都能直接采用的规范。面向旧 Vue 基座的
+《前端组件使用规范》没有收录：它只约束尚未迁移到 React 的应用，与现行 React + shadcn/ui
+前端无关，前端组件规范以 [admin-design](https://github.com/runlume/admin-design) 为准。
 
-| 规范 | 平台仓库位置 | 边界 |
-| --- | --- | --- |
-| 业务系统平台集成 access 模块标准 | `docs/backend/business-system-access-module-standard.md` | 远程 Java 业务 SaaS 的包与模块标准，复用范围限于接入平台的产品线 |
-| 业务系统版本与能力契约升级规范 | `docs/backend/business-system-version-and-capability-upgrade-guidelines.md` | 平台契约版本与能力升级约定，依赖平台的 Manifest 与发布流程 |
-| 前端组件使用规范 | `docs/development/frontend-component-guidelines.md` | 只约束尚未迁移到 React 的旧 Vue 基座应用 |
-
-本仓库是公开仓库，上述三份都**没有复制进来**：前两份属于平台专有接入标准，正文包含平台内部
-实现与规划信息，且大部分描述的是本仓库并未实现的完整接入能力；后一份面向已下线的
-Vue / Fantastic Admin 基座，与现行 React + shadcn/ui 前端无关。
-
-本仓库实际的接入面由自己维护，见
-[project/platform-integration.md](../../project/platform-integration.md)；
-前端组件规范以 [admin-design](https://github.com/runlume/admin-design) 为准。
-
-除本节外，本目录与平台仓库逐字一致。
+平台接入契约见 [project/platform-integration.md](../../project/platform-integration.md)。
 
 ## 2. 规则优先级
 

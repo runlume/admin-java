@@ -1,7 +1,7 @@
 [versions]
 checkstyle = "13.3.0"
 spring-modulith = "2.1.0"
-# platform-integration-sdk-java 由 platform 仓库发布，未进入 Maven Central。
+# platform-integration-sdk-java 由 Runlume 发布，未进入 Maven Central。
 platform-integration-sdk = "1.0.0"
 
 [libraries]

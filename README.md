@@ -71,7 +71,7 @@ curl -b jar -c jar -X POST http://localhost:8080/api/v1/auth/register \
 ./gradlew bootRun      # 本地启动
 ```
 
-集成测试与 jOOQ 代码生成需要容器运行时。macOS + Podman 的做法与平台仓库一致：
+集成测试与 jOOQ 代码生成需要容器运行时。macOS + Podman 先设置：
 
 ```bash
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
@@ -201,12 +201,12 @@ docs/                             本项目文档与内置标准
 ### 分阶段接入
 
 当前是**最小接入**：统一开通与登录。出现资源、AI、Capability 或跨 SaaS 数据交换需求时，再按
-[平台接入契约](docs/project/platform-integration.md) 核对边界，并按平台仓库的完整接入标准逐项启用，
+[平台接入契约](docs/project/platform-integration.md) 核对边界，并按平台侧的完整接入标准逐项启用，
 不要提前做空实现。
 
 `Spring Boot` 的 Deployment License 自动配置在本模板中被显式排除：
 REMOTE 接入不要求业务 SaaS 持有或校验 Deployment License。交付客户可自行运行的私有化镜像时，
-删除 `application.yml` 中的 `spring.autoconfigure.exclude` 项并按 License 运行门禁文档补齐配置。
+删除 `application.yml` 中的 `spring.autoconfigure.exclude` 项并按 License 要求补齐配置。
 
 ## 文档
 
@@ -215,7 +215,7 @@ REMOTE 接入不要求业务 SaaS 持有或校验 Deployment License。交付客
 - [docs/project/api.md](docs/project/api.md)：接口契约、错误码与状态语义
 - [docs/project/template.md](docs/project/template.md)：作为模板复制的检查清单
 - [docs/project/platform-integration.md](docs/project/platform-integration.md)：本仓库实现的最小接入契约
-- [docs/standards/](docs/standards/)：内置的通用开发规范；平台专有接入标准不随本仓库公开（含原因说明）
+- [docs/standards/](docs/standards/)：内置的通用开发规范
 
 ## 开源协议
 

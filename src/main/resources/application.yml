@@ -3,11 +3,10 @@ spring:
     name: admin-java
   autoconfigure:
     exclude:
-      # REMOTE 接入不要求业务 SaaS 持有或校验 Deployment License，平台只用订阅、权益、
-      # AppInstance 生命周期和实例服务 Token 完成授权。该自动配置要求业务系统提供
-      # DeploymentLicenseStartupResolver 与 LicenseContextProvider，缺失时会让上下文启动失败，
-      # 因此这里显式关闭。交付客户可自行运行的私有化镜像时，删除本排除项并按
-      # deployment-license 运行门禁文档提供 forge.license.* 配置与 classpath license.bin。
+      # REMOTE 接入不要求业务 SaaS 持有或校验 Deployment License。该自动配置要求业务系统
+      # 提供 DeploymentLicenseStartupResolver 与 LicenseContextProvider，缺失时会让上下文
+      # 启动失败，因此这里显式关闭。交付客户可自行运行的私有化镜像时，删除本排除项并按
+      # License 要求提供配置与 classpath license.bin。
       - app.runlume.platform.sdk.license.autoconfigure.DeploymentLicenseAutoConfiguration
   datasource:
     url: ${ADMIN_DB_URL:jdbc:postgresql://localhost:5432/admin}
