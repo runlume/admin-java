@@ -57,6 +57,17 @@ class PermissionCatalogTests {
         assertThat(PermissionCatalog.isValidCode("example.admin.member.*")).isTrue();
         assertThat(PermissionCatalog.isValidCode("*")).isTrue();
         assertThat(PermissionCatalog.isValidCode("User:View")).isFalse();
+        assertThat(PermissionCatalog.isValidCode("profile:view")).isFalse();
         assertThat(PermissionCatalog.isValidCode("")).isFalse();
+    }
+
+    @Test
+    void everyDefinitionUsesTheNamespaceDotForm() {
+        assertThat(PermissionCatalog.definitions())
+                .extracting(PermissionCatalog.PermissionDefinition::code)
+                .allSatisfy(code -> {
+                    assertThat(PermissionCatalog.isValidCode(code)).isTrue();
+                    assertThat(code).startsWith(PermissionCatalog.NAMESPACE + ".");
+                });
     }
 }

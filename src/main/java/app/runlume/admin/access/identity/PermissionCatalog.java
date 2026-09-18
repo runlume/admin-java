@@ -21,11 +21,11 @@ public final class PermissionCatalog {
     /** 全部权限。 */
     public static final String ALL = "*";
 
-    /** 查看本人资料。 */
-    public static final String PROFILE_VIEW = "profile:view";
-
     /** 当前部署的权限命名空间，必须与平台登记的模块标识一致。 */
     public static final String NAMESPACE = "example.admin";
+
+    /** 查看本人资料。 */
+    public static final String PROFILE_VIEW = NAMESPACE + ".profile.view";
 
     /** 查看工作区成员列表与详情。 */
     public static final String MEMBER_VIEW = NAMESPACE + ".member.view";

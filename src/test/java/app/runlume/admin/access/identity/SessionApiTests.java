@@ -85,6 +85,23 @@ class SessionApiTests extends PostgresTestSupport {
     }
 
     @Test
+    void registeredLocalAccountReachesWorkspaceScopedBusinessData() throws Exception {
+        String email = "workspace-" + UUID.randomUUID() + "@runlume.local";
+        MvcResult registration = mockMvc.perform(post("/api/v1/auth/register")
+                        .cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", csrfToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registerBody(email)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Cookie session = registration.getResponse().getCookie("ADMIN_SESSION");
+        assertThat(session).isNotNull();
+
+        mockMvc.perform(get("/api/v1/notices").cookie(session))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void writeRequestWithoutCsrfTokenIsRejected() throws Exception {
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
