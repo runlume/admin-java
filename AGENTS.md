@@ -33,10 +33,12 @@
   Testcontainers 需要容器运行时，macOS + Podman 先设置：
 
   ```bash
+  podman machine start
   export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
   export TESTCONTAINERS_RYUK_DISABLED=true
   ```
 
+- Windows 与 Linux 的容器运行时设置见 README 的[构建与校验](README.md#构建与校验)。
 - 改表必须同时改 Migration、jOOQ 生成清单与使用它的代码，`generateJooq` 会校验表集合。
 - 新能力要满足三件套：**实现 + 契约文档 + 覆盖用例**。
 - 说明实际结果与未覆盖边界；不得通过删除或跳过用例让校验变绿。

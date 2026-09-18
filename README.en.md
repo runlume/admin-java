@@ -47,7 +47,7 @@ Prerequisites: Java 25, PostgreSQL 18, and a working container runtime (needed f
 generation and the integration tests).
 
 ```bash
-# 1. Start a local PostgreSQL (example)
+# 1. Start a local PostgreSQL (example); with Docker, replace podman with docker
 podman run -d --name admin-db -p 5432:5432 \
   -e POSTGRES_DB=admin -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=admin \
   postgres:18.4
@@ -76,13 +76,54 @@ curl -b jar -c jar -X POST http://localhost:8080/api/v1/auth/register \
 ./gradlew bootRun      # run locally
 ```
 
-The integration tests and jOOQ code generation need a container runtime. On macOS with Podman:
+The integration tests and jOOQ code generation need a container runtime. Docker Desktop and a
+distribution's docker package work out of the box; the setups below cover the cases that need an
+explicit socket, such as Podman. `TESTCONTAINERS_RYUK_DISABLED=true` skips the Ryuk container, which
+must mount the host container socket and often cannot under Podman or rootless Docker.
+
+**docker vs podman**: both run these tests. Testcontainers only needs a container runtime exposing a
+Docker-compatible socket, so the differences that matter are three:
+
+| | docker | podman |
+| --- | --- | --- |
+| Process model | Persistent daemon; on macOS / Windows it runs inside the Docker Desktop VM | Daemonless; on macOS / Windows start the VM with `podman machine start`, on Linux it runs as local processes |
+| Socket | The default location works | `DOCKER_HOST` must be set explicitly — a unix socket on macOS, a named pipe on Windows |
+| Ryuk container cleanup | Works | Ryuk must mount the host socket and often cannot, so set `TESTCONTAINERS_RYUK_DISABLED=true`; to keep Ryuk, also set `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock` |
+
+On Linux, podman is rootless by default and docker runs as root; these tests only start a plain
+PostgreSQL 18 container, so that difference does not change the outcome.
+
+**macOS**: Docker Desktop needs no extra configuration; with Podman, start the VM and point `DOCKER_HOST`
+at its socket:
 
 ```bash
+podman machine start
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
 export TESTCONTAINERS_RYUK_DISABLED=true
 ./gradlew check
 ```
+
+**Windows**: Docker Desktop needs no extra configuration — just run `.\gradlew.bat check`. With Podman, set
+these in PowerShell (replace `podman-machine-default` if you renamed the machine):
+
+```powershell
+podman machine start
+$env:DOCKER_HOST = 'npipe:////./pipe/podman-machine-default'
+$env:TESTCONTAINERS_RYUK_DISABLED = 'true'
+.\gradlew.bat check
+```
+
+**Linux**: docker connects to `/var/run/docker.sock` directly and needs no variables; for rootless Podman
+enable the socket first:
+
+```bash
+systemctl --user enable --now podman.socket
+export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/podman/podman.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true
+./gradlew check
+```
+
+Inside WSL, follow the Linux setup.
 
 The database schema is built **only** from the Flyway migrations under `src/main/resources/db/migration`. Every
 jOOQ generation starts a fresh temporary PostgreSQL 18 and migrates it completely; generating from a developer's

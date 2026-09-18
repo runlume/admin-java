@@ -43,7 +43,7 @@ Java 25 + Spring Boot 4.1 + Spring Security + PostgreSQL 18 + Flyway + jOOQ + Sp
 前置：Java 25、PostgreSQL 18、可用的容器运行时（构建期 jOOQ 代码生成与集成测试需要）。
 
 ```bash
-# 1. 启动本地 PostgreSQL（示例）
+# 1. 启动本地 PostgreSQL（示例）；用 Docker 就把下面的 podman 换成 docker
 podman run -d --name admin-db -p 5432:5432 \
   -e POSTGRES_DB=admin -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=admin \
   postgres:18.4
@@ -71,13 +71,52 @@ curl -b jar -c jar -X POST http://localhost:8080/api/v1/auth/register \
 ./gradlew bootRun      # 本地启动
 ```
 
-集成测试与 jOOQ 代码生成需要容器运行时。macOS + Podman 先设置：
+集成测试与 jOOQ 代码生成需要容器运行时。下面按开发环境列出设置，Docker Desktop 与
+发行版自带的 docker 通常开箱可用，列出的都是 Podman 这类需要显式指定套接字的情况。
+`TESTCONTAINERS_RYUK_DISABLED=true` 用来跳过 Ryuk 容器：Ryuk 要挂载宿主容器套接字，
+Podman 与 rootless Docker 上经常挂不上。
+
+**docker 与 podman 的差别**：两者都能跑这里的测试。Testcontainers 只要求有容器运行时并暴露出
+Docker 兼容套接字，所以真正要处理的差异只有三处：
+
+| | docker | podman |
+| --- | --- | --- |
+| 运行形态 | 常驻守护进程；macOS / Windows 上跑在 Docker Desktop 的虚拟机里 | 无守护进程；macOS / Windows 上先 `podman machine start` 起虚拟机，Linux 上直接用本机进程 |
+| 套接字 | 默认位置即可 | 需要显式给 `DOCKER_HOST`，macOS 是 unix 套接字，Windows 是命名管道 |
+| Ryuk 容器回收 | 正常 | 要挂载宿主套接字，常挂不上，因此设 `TESTCONTAINERS_RYUK_DISABLED=true`；想保留 Ryuk 就再加 `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock` |
+
+权限上 Linux 的 podman 默认 rootless、docker 默认 root；本仓库的测试只起一个普通
+PostgreSQL 18 容器，这个差别不影响结果。
+
+**macOS**：Docker Desktop 不需要额外配置；用 Podman 先起虚拟机并把 `DOCKER_HOST` 指向它的套接字：
 
 ```bash
+podman machine start
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
 export TESTCONTAINERS_RYUK_DISABLED=true
 ./gradlew check
 ```
+
+**Windows**：Docker Desktop 不需要额外配置，直接 `.\gradlew.bat check`；用 Podman 则在 PowerShell 里设置
+（机器改过名就把 `podman-machine-default` 换成自己的）：
+
+```powershell
+podman machine start
+$env:DOCKER_HOST = 'npipe:////./pipe/podman-machine-default'
+$env:TESTCONTAINERS_RYUK_DISABLED = 'true'
+.\gradlew.bat check
+```
+
+**Linux**：docker 直连 `/var/run/docker.sock`，不需要设置变量；rootless Podman 先开 socket：
+
+```bash
+systemctl --user enable --now podman.socket
+export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/podman/podman.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true
+./gradlew check
+```
+
+在 WSL 里构建按 Linux 处理。
 
 数据库结构**只**由 `src/main/resources/db/migration` 下的 Flyway Migration 建立；
 jOOQ 类型每次生成都会新建临时 PostgreSQL 18 并完整迁移，不允许从开发者已有数据库生成。

@@ -84,6 +84,8 @@ export TESTCONTAINERS_RYUK_DISABLED=true
 ./gradlew build
 ```
 
+Windows 与 Linux 的容器运行时设置见 [README 构建与校验](../../README.md#构建与校验)。
+
 `build` 必须聚合编译、Checkstyle、测试与 `generateJooq`。jOOQ 生成会断言实际表集合与
 `JooqCodegen` 中的期望集合完全一致，新增或删除表却未同步时直接失败；扫描目标为空同样失败。
 环境缺失导致的跳过不算通过。
