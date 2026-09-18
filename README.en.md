@@ -273,6 +273,7 @@ license configuration it requires.
 - [docs/project/api.md](docs/project/api.md): API contract, error codes and state semantics
 - [docs/project/template.md](docs/project/template.md): checklist for copying the template
 - [docs/project/platform-integration.md](docs/project/platform-integration.md): the minimal integration contract this repository implements
+- [docs/project/platform-capabilities.md](docs/project/platform-capabilities.md): platform open capabilities and the SDK entry points
 - [docs/standards/](docs/standards/): bundled generic engineering standards
 
 ## License

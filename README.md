@@ -254,6 +254,7 @@ REMOTE 接入不要求业务 SaaS 持有或校验 Deployment License。交付客
 - [docs/project/api.md](docs/project/api.md)：接口契约、错误码与状态语义
 - [docs/project/template.md](docs/project/template.md)：作为模板复制的检查清单
 - [docs/project/platform-integration.md](docs/project/platform-integration.md)：本仓库实现的最小接入契约
+- [docs/project/platform-capabilities.md](docs/project/platform-capabilities.md)：平台开放能力与 SDK 接口清单
 - [docs/standards/](docs/standards/)：内置的通用开发规范
 
 ## 开源协议
