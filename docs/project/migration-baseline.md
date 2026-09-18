@@ -9,8 +9,9 @@
 | --- | --- |
 | `V001__baseline.sql` | 全部 Schema：表、列、约束、索引与中文 Catalog 注释 |
 | `V002__built_in_roles.sql` | 内置角色与权限码种子数据 |
+| `V003__catalog_comments.sql` | 收缩后第一个前向迁移：补齐每列 COMMENT，并修正两处已失效的表注释；只写注释，不动结构 |
 
-新增变更从 `V003` 起分配；此后恢复 [数据库版本与迁移规范](../standards/development/database-version-and-migration-guidelines.md)
+新增变更从 `V004` 起分配；[数据库版本与迁移规范](../standards/development/database-version-and-migration-guidelines.md)
 第 4 节的默认规则：已共享 Migration 不修改、删除、重命名，错误用更高版本前向修复。
 
 这也是模板的对外形状：复制项目时改 `V001` 换业务表、改 `V002` 与 `PermissionCatalog` 换权限，
@@ -31,8 +32,8 @@
 - 表按依赖顺序重排（工作区先于账号），被引用对象建好后再建引用方，因此不再需要"先建表后补约束"的 ALTER。
 - 只为兼容既有行而存在的回填与改名语句在空库上是空操作，直接删除而不是保留。
 - `V001` 保持收缩前链的最终定义与最终注释文本，不做顺手改写，便于逐项比对等价；历史沿用的表注释
-  （例如 `admin_workspace` 仍写"一对一映射"、`admin_role_permission` 仍写 `模块:*`）原样保留，
-  需要更新时另开一个前向迁移。
+  （`admin_workspace` 写"一对一映射"、`admin_role_permission` 写 `模块:*`）原样保留，随后由 `V003`
+  按规范前向修正，而不是回头改 `V001`。
 
 ## 3. 等价验证
 
@@ -44,7 +45,9 @@
 | 旧链 `V001`–`V007` | 指纹 358 行 |
 | 新链 `V001`–`V002` | 指纹 358 行，与旧链逐行一致（无差异） |
 | jOOQ 生成 | 从新链重建空库后重新生成，表与列定义不变 |
-| 应用门禁 | `./gradlew build` 通过（36 项测试、0 失败，含 Testcontainers 集成测试） |
+| 新链 `V001`–`V003` | 相对旧链只多出注释：10 张表、83 列、103 条约束、24 个索引与两张种子表全部一致，差异仅 69 条新增列注释与 2 条修正后的表注释 |
+| Catalog 注释门禁 | `DatabaseCatalogCommentTests` 断言每张表与每一列都有中文注释；83 列从 14 列有注释补齐到 83 列全覆盖 |
+| 应用门禁 | `./gradlew build` 通过（38 项测试、0 失败，含 Testcontainers 集成测试） |
 
 ## 4. 这是一次授权的开发期基线重置
 
