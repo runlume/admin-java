@@ -17,8 +17,8 @@
 
 ### 2.1 通用开发规范 `standards/development/`
 
-这一套与产品无关、不含平台专有信息。它强制适用于本仓库的全部 Java、Gradle、Flyway SQL、
-OpenAPI 与 Git 改动，入口是 [standards/development/README.md](standards/development/README.md)。重点：
+这一套规范强制适用于本仓库的全部 Java、Gradle、Flyway SQL、OpenAPI 与 Git 改动，
+入口是 [standards/development/README.md](standards/development/README.md)。重点：
 
 | 文档 | 何时必读 |
 | --- | --- |
@@ -33,14 +33,7 @@ OpenAPI 与 Git 改动，入口是 [standards/development/README.md](standards/d
 
 其余为设计原则与模式选型规范，按需查阅。
 
-本目录唯一的裁剪：《前端组件使用规范》未收录。它面向已下线的 Vue 基座后台，
-与现行 React + shadcn/ui 前端无关，而本仓库是纯后端交付物。前端组件规范以
-[admin-design](https://github.com/runlume/admin-design) 为准。
-
-平台侧的设计与内部实现不进入本仓库，接入契约由本仓库自己维护，见
-[project/platform-integration.md](project/platform-integration.md)。
-
 ## 3. 本项目固定值
 
-本项目自己的固定值写在 [project-development-profile.md](project-development-profile.md)，
-不引用也不复制平台 Profile。通用规范要求每个采用项目维护一份自己的 Profile，本文件即为那一份。
+本项目自己的固定值写在 [project-development-profile.md](project-development-profile.md)；
+通用规范要求每个采用项目维护一份自己的 Profile，本文件即为那一份。

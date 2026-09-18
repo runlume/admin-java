@@ -21,13 +21,9 @@
 13. [错误码与前端错误提示开发规范](error-code-handling-guidelines.md)
 14. [工程文档体系与维护方法论](documentation-maintenance-methodology.md)
 
-## 1.1 不属于本目录的规范
-
-本目录只收录与具体产品无关、任何项目都能直接采用的规范。面向旧 Vue 基座的
-《前端组件使用规范》没有收录：它只约束尚未迁移到 React 的应用，与现行 React + shadcn/ui
-前端无关，前端组件规范以 [admin-design](https://github.com/runlume/admin-design) 为准。
-
-平台接入契约见 [project/platform-integration.md](../../project/platform-integration.md)。
+本目录只收录与具体产品无关、任何项目都能直接采用的规范。前端组件规范见
+[admin-design](https://github.com/runlume/admin-design)，平台接入契约见
+[project/platform-integration.md](../../project/platform-integration.md)。
 
 ## 2. 规则优先级
 
