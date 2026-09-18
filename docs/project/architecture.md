@@ -44,10 +44,15 @@ app.runlume.admin
 | 链路 | 身份来源 | 会话绝对过期 |
 | --- | --- | --- |
 | 本地登录 / 注册 | `admin_user`（BCrypt 口令） | `admin.local.session-ttl` |
-| 平台 Launch | 平台 Context Token 验证后的映射账号 | `min(session-ttl, Context Token exp)` |
+| 平台 Launch | 平台 Context Token 验证后的映射账号 | `admin.local.session-ttl`，撤销时效由会话校验窗口约束 |
 
-会话只保存 `userId`、`workspaceId`、`email`、`displayName`、`roles`、`permissions` 与 `expiresAt`，
-**不含**任何 Token、Launch Code、Client Secret 或完整 Claims。
+会话只保存 `userId`、`workspaceId`、`platformAccountId`、`platformAppInstanceId`、`email`、
+`displayName`、`roles`、`permissions` 与 `expiresAt`，**不含**任何 Token、Launch Code、
+Client Secret 或完整 Claims。工作区与平台边界同时存在或同时缺失：本地自有账号没有工作区。
+
+会话建立后仍有逐请求复验：`WorkspaceAccessFilter` 在每个请求按 `platformAccountId` 与
+`platformAppInstanceId` 重读工作区，要求 id 一致且状态为 `ACTIVE`，否则立即失效会话并返回 `401`。
+因此平台暂停或注销实例的状态变化最迟在下一个请求生效，而不是等到会话自然过期。
 
 平台映射账号与本地账号在同一个 `admin_user` 表中，用 `credential_source` 区分：
 
@@ -59,10 +64,13 @@ app.runlume.admin
 
 ## 4. 权限模型
 
-权限码与 admin-design 前端共用一套约定：`*` 全部、`模块:*` 模块内全部、其余精确匹配。
+权限码与 admin-design 前端共用一套约定：`*` 全部、`<命名空间>.<资源>.*` 资源内全部、其余精确匹配；
+命名空间取本部署在平台登记的模块标识（模板默认 `example.admin`），格式与平台
+`BUSINESS_RBAC` 的 `<module-namespace>.<resource>.<action>` 一致。
 
 服务端在建立会话时用 `PermissionCatalog.expand` 把通配展开成具体码写入 Spring Security 的授权集合，
-因此 `@PreAuthorize("hasAuthority('user:view')")` 对持有 `*` 或 `user:*` 的账号同样成立。
+因此 `@PreAuthorize("hasAuthority('example.admin.member.view')")` 对持有 `*` 或
+`example.admin.member.*` 的账号同样成立。
 接口返回给前端的是**原始**权限码，由前端自行做通配过滤。
 
 权限目录是代码内置的（`PermissionCatalog`），角色与授予关系在数据库（`admin_role`、
@@ -74,8 +82,8 @@ app.runlume.admin
 
 - 工作区标识只来自已认证会话的 `AdminSessionPrincipal.workspaceId`。
 - 请求体、Query 与自定义 Header 中的 Account、实例、工作区声明一律不可信。
-- 示例业务域 `notice` 用 `workspace_id` 体现该规则：公共公告（`NULL`）对全部会话可见，
-  实例公告只对所属工作区可见。
+- 示例业务域 `notice` 用 `workspace_id` 体现该规则：公告只对所属工作区可见；没有工作区的
+  本地运营会话被拒绝（`WORKSPACE_REQUIRED`），不再存在"`NULL` 即公共数据"的语义。
 
 平台生命周期入参里的 `accountId`、`appInstanceId` 只在**首次建档**时使用，不能作为普通业务请求的租户凭据。
 
