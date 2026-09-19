@@ -101,3 +101,10 @@ tasks.withType(AbstractArchiveTask).configureEach {
 	preserveFileTimestamps = false
 	reproducibleFileOrder = true
 }
+
+// Apache-2.0 要求随分发提供许可文本与署名信息：把协议文件与第三方清单打进制品。
+tasks.withType(Jar).configureEach {
+	from(layout.projectDirectory.file('LICENSE')) { into 'META-INF' }
+	from(layout.projectDirectory.file('NOTICE')) { into 'META-INF' }
+	from(layout.projectDirectory.file('docs/licenses/THIRD-PARTY-NOTICES.md')) { into 'META-INF/licenses' }
+}

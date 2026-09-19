@@ -1,0 +1,9 @@
+Runlume Admin Java
+Copyright 2026 Runlume
+
+本产品包含由 Runlume 开发的软件，并以 Apache License 2.0 授权（见 LICENSE）。
+
+第三方依赖清点见 docs/licenses/THIRD-PARTY-NOTICES.md（随 jar 打入 META-INF/licenses/）。
+
+平台集成 SDK（app.runlume.platform:platform-integration-sdk-java）由 Runlume 单独发布，
+不属于本仓库 Apache-2.0 的授权范围，只能凭平台授予的凭据与许可使用，不要重新分发制品。

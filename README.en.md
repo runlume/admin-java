@@ -7,7 +7,7 @@
 
 # Standard Admin Backend
 
-[![License](https://img.shields.io/github/license/runlume/admin-java?style=flat-square&label=license&color=97ca00)](LICENSE)
+[![License](https://img.shields.io/github/license/runlume/admin-java?style=flat-square&label=license&color=blue)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-25-1f6feb?style=flat-square)](docs/standards/development/java-25-language-and-runtime-guidelines.md)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-6db33f?style=flat-square)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169e1?style=flat-square)](https://www.postgresql.org/)
@@ -281,6 +281,7 @@ license configuration it requires.
 
 ## License
 
-[MIT](LICENSE), Copyright (c) 2026 Runlume. Copy it into commercial products freely — just keep the copyright
-and license notice. The marks under `docs/brand/` are brand assets, so replace them with your own.
-Details: [docs/guide/license.md](docs/guide/license.md).
+[Apache-2.0](LICENSE), Copyright 2026 Runlume. Copy it into commercial products freely — just keep the copyright
+and license notice and ship [LICENSE](LICENSE) plus [NOTICE](NOTICE) with any distribution. The license grants an
+express patent license but no trademark rights. The marks under `docs/brand/` are brand assets, so replace them
+with your own. Details: [docs/guide/license.md](docs/guide/license.md).

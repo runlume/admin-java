@@ -7,7 +7,7 @@
 
 # 标准后台后端
 
-[![开源协议](https://img.shields.io/github/license/runlume/admin-java?style=flat-square&label=%E5%BC%80%E6%BA%90%E5%8D%8F%E8%AE%AE&color=97ca00)](LICENSE)
+[![开源协议](https://img.shields.io/github/license/runlume/admin-java?style=flat-square&label=%E5%BC%80%E6%BA%90%E5%8D%8F%E8%AE%AE&color=blue)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-25-1f6feb?style=flat-square)](docs/standards/development/java-25-language-and-runtime-guidelines.md)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-6db33f?style=flat-square)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169e1?style=flat-square)](https://www.postgresql.org/)
@@ -262,5 +262,6 @@ REMOTE 接入不要求业务 SaaS 持有或校验 Deployment License。交付客
 
 ## 开源协议
 
-[MIT](LICENSE)，Copyright (c) 2026 Runlume。可以自由复制进商业产品，只需保留版权与许可声明；
+[Apache-2.0](LICENSE)，Copyright 2026 Runlume。可以自由复制进商业产品，只需保留版权与许可声明，
+并随分发附上 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)；协议含显式专利授权，但不授予商标权。
 `docs/brand/` 下的品牌标识属于品牌资产，使用时替换成自己的。细节见 [docs/guide/license.md](docs/guide/license.md)。
