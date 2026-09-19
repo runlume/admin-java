@@ -195,7 +195,7 @@ public class MemberManagementController {
      * @return 角色信息
      */
     @GetMapping("/roles")
-    @PreAuthorize("hasAuthority('role:view')")
+    @PreAuthorize("hasAuthority('example.admin.role.view')")
     public List<RoleResponse> listRoles() {
         return identity.listRoles().stream().map(RoleResponse::from).toList();
     }
