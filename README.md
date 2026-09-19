@@ -164,7 +164,7 @@ jOOQ 类型每次生成都会新建临时 PostgreSQL 18 并完整迁移，不允
 
 ## 关键约定
 
-- **权限码**：`*` 全部、`模块:*` 模块内全部、其余精确匹配，与 admin-design 前端一致。
+- **权限码**：`*` 全部、`<命名空间>.<资源>.*` 该资源下全部、其余精确匹配，与 admin-design 前端一致。
   服务端把通配展开成具体权限码后再授权，避免"前端可见、后端拒绝"。
 - **会话只存派生身份**：`AdminSessionPrincipal` 不含平台 Token、Launch Code、Client Secret 或完整 Claims；
   会话绝对过期取 `admin.local.session-ttl`，平台票据只证明进入时点，成员撤销由校验窗口收敛。
@@ -214,10 +214,10 @@ docs/                             本项目文档与内置标准
 4. **换数据库**：改 `ADMIN_DB_*` 与 `src/main/resources/db/migration/V001__baseline.sql`，
    业务表必须带 workspace 维度。改完执行 `./gradlew generateJooq`。
 5. **换权限**：改 `PermissionCatalog` 与 `V002__built_in_roles.sql`，权限码格式保持
-   `模块:动作`，前端 admin-design 无需改动即可用通配匹配。
+   `<命名空间>.<资源>.<动作>`，前端 admin-design 无需改动即可用通配匹配。
 6. **接平台**：从 [平台接入配置](#平台接入配置) 填入模块标识、Issuer、JWKS 与 Audience，
    把 `admin.platform.enabled` 打开，并在平台侧完成模块登记与 Client 凭据配置。
-7. **换品牌**：`banner.txt`、README 与 `docs/`。
+7. **换品牌**：README、`AGENTS.md` 与 `docs/`；启动横幅由平台集成 Starter 统一提供。
 
 ## 平台接入配置
 

@@ -172,9 +172,9 @@ frontend can map them to copy.
 
 ## Key conventions
 
-- **Permission codes**: `*` for everything, `module:*` for a whole module, exact match otherwise — the same
-  convention as the admin-design frontend. The server expands wildcards into concrete codes before
-  authorising, so nothing is ever visible in the UI but rejected by the API.
+- **Permission codes**: `*` for everything, `<namespace>.<resource>.*` for a whole resource, exact
+  match otherwise — the same convention as the admin-design frontend. The server expands wildcards
+  into concrete codes before authorising, so nothing is ever visible in the UI but rejected by the API.
 - **The session holds derived identity only**: `AdminSessionPrincipal` carries no platform token, Launch code,
   client secret or full claims; the absolute expiry comes from `admin.local.session-ttl`, the platform ticket
   only proves the entry point, and member revocation converges within the validation window.
@@ -229,11 +229,13 @@ API and error codes: [docs/project/api.md](docs/project/api.md).
 4. **Swap the database**: change `ADMIN_DB_*` and `src/main/resources/db/migration/V001__baseline.sql`, keeping
    the workspace dimension on business tables, then run `./gradlew generateJooq`.
 5. **Swap permissions**: change `PermissionCatalog` and `V002__built_in_roles.sql`, keeping the
-   `module:action` code format so the admin-design frontend wildcard matching keeps working unchanged.
+   `<namespace>.<resource>.<action>` code format so the admin-design frontend wildcard matching keeps working
+   unchanged.
 6. **Connect the platform**: fill in the module id, issuer, JWKS and audiences from
    [Platform integration configuration](#platform-integration-configuration), turn on
    `admin.platform.enabled`, and register the module and client credentials on the platform side.
-7. **Rebrand**: `banner.txt`, the READMEs and `docs/`.
+7. **Rebrand**: the READMEs, `AGENTS.md` and `docs/`; the startup banner comes from the platform
+   integration starter.
 
 ## Platform integration configuration
 

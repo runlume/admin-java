@@ -22,7 +22,7 @@ import java.util.UUID;
  * @param email 登录邮箱
  * @param displayName 展示名称
  * @param roles 本地角色码
- * @param permissions 权限码原始集合；`*` 表示全部，`模块:*` 表示模块内全部
+ * @param permissions 权限码原始集合；`*` 表示全部，`<命名空间>.<资源>.*` 表示该资源下全部
  * @param membershipRevision 平台成员授权修订号；本地自有账号为 0
  * @param expiresAt 会话绝对过期时间
  * @author 树深技术

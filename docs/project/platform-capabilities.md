@@ -47,7 +47,8 @@ Scope，未声明的能力不会授予，调用会失败。
 
 入口是 `RuntimeIdentityClient`，它把"交换 Launch Code"和"申请实例服务 Token"收敛成两个方法，
 并负责验证 Issuer、Audience、签名、有效期与模块边界。它**不申请、不缓存任何凭据**——
-模块服务 Token 必须由调用方自己取得，admin-java 的做法见 `ModuleServiceTokenProvider`。
+模块服务 Token 必须由调用方自己取得；本仓库不自行实现，由平台集成 Starter 装配的 SDK
+`PlatformServiceTokens` 与 `InstanceServiceTokens` 按需申请。
 
 ### 4.2 资源、AI、Web、文件、通知
 
@@ -151,9 +152,9 @@ SDK 不把上游响应体、Token 或 Claims 放进异常，只给稳定分类�
 | 能力 | 本仓库状态 |
 | --- | --- |
 | 身份（Launch 换码） | 已接入：`SdkPlatformLaunchGateway` |
-| 身份（模块服务 Token） | 已实现：`ModuleServiceTokenProvider` |
+| 身份（模块服务 Token） | 已接入：平台集成 Starter 装配的 SDK `PlatformServiceTokens`、`InstanceServiceTokens` |
 | 运行时 Token 验签 | 已接入：`PlatformJwtVerifier` |
-| 联机探针 | 已实现：`PlatformConnectionProbe`（只探测 JWKS，不用 SDK） |
+| 联机探针 | 已接入：平台集成 Starter 的 `PlatformConnectionProbeController`（只解析运行时光钥） |
 | 生命周期入站 | 已实现：生命周期端点，鉴权由独立安全链完成，不经过 SDK |
 | 资源、AI、Web、文件、通知、组织目录、跨系统集成 | **未接入**，属于完整接入 |
 

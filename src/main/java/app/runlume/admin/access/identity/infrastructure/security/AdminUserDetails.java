@@ -14,7 +14,7 @@ import java.util.List;
  * 口令认证阶段使用的账号细节，只存在于一次登录请求内。
  *
  * <p>授权集合是 {@link PermissionCatalog#expand} 展开后的具体权限码，因此
- * {@code *} 与 {@code 模块:*} 同样能通过 {@code hasAuthority} 判定。</p>
+ * {@code *} 与 {@code <命名空间>.<资源>.*} 同样能通过 {@code hasAuthority} 判定。</p>
  *
  * @param user 账号视图
  * @param passwordHash BCrypt 口令摘要

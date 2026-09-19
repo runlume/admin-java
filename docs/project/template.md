@@ -10,15 +10,16 @@
 | 1 | `settings.gradle` | `rootProject.name` |
 | 2 | `build.gradle` | `group`、`description`、`version` |
 | 3 | `src/main/resources/application.yml` | `spring.application.name`、`server.servlet.session.cookie.name` |
-| 4 | `src/main/resources/banner.txt` | 品牌横幅 |
-| 5 | 根包 `app.runlume.admin` | 改成新根包（IDE 重命名后确认 `package-info.java` 一并更新） |
-| 6 | `src/jooqCodegen/.../JooqCodegen.java` | 生成包名与每张表的期望清单必须与新根包和新表一致 |
-| 7 | `src/main/resources/db/migration/V001__baseline.sql` | 业务表与索引；业务表必须带 workspace 维度 |
-| 8 | `PermissionCatalog` + `V002__built_in_roles.sql` | 新权限码与内置角色 |
-| 9 | `notice` 包 | 替换为真实业务域 |
-| 10 | `README.md`、`AGENTS.md`、`docs/` | 品牌、命令与固定值 |
+| 4 | 根包 `app.runlume.admin` | 改成新根包（IDE 重命名后确认 `package-info.java` 一并更新） |
+| 5 | `src/jooqCodegen/.../JooqCodegen.java` | 生成包名与每张表的期望清单必须与新根包和新表一致 |
+| 6 | `src/main/resources/db/migration/V001__baseline.sql` | 业务表与索引；业务表必须带 workspace 维度 |
+| 7 | `PermissionCatalog` + `V002__built_in_roles.sql` | 新权限码与内置角色 |
+| 8 | `notice` 包 | 替换为真实业务域 |
+| 9 | `README.md`、`AGENTS.md`、`docs/` | 品牌、命令与固定值 |
 
-第 6 步容易被忽略：`JooqCodegen` 会校验实际生成的表清单与期望集合是否完全一致，
+启动横幅由平台集成 Starter 统一提供，项目不再自带 `banner.txt`。
+
+第 5 步容易被忽略：`JooqCodegen` 会校验实际生成的表清单与期望集合是否完全一致，
 表增加了却忘记同步时构建会直接失败，这是刻意设计的门禁。
 
 ## 2. 平台接入
@@ -58,7 +59,7 @@
 | 会话恢复 | `GET /api/v1/me`（含用户与原始权限码） |
 | 退出 | `POST /api/v1/auth/logout` |
 | CSRF | `GET /api/v1/csrf` + `X-XSRF-TOKEN` 请求头 |
-| 权限码 | `*` / `模块:*` / 精确匹配，与前端 `PermissionCode` 约定一致 |
+| 权限码 | `*` / `<命名空间>.<资源>.*` / 精确匹配，与前端 `PermissionCode` 约定一致 |
 
 前端把 `src/app/session.ts` 的 `demoAccounts` 换成调用上述接口即可，菜单与按钮的权限过滤不需要改。
 

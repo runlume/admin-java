@@ -101,7 +101,8 @@
 并且只在 HTTP 200、JSON 合法且 `keys` 为非空数组时才为 `true`。
 
 它证明"后端能解析平台公钥"，不证明浏览器已登录、用户已获实例授权或 Launch 链路可用。
-实现见 `PlatformConnectionProbe`。
+实现由平台集成 Starter 提供：`PlatformConnectionProbeController` 读取 SDK 的
+`PlatformConnectionProbe`，路径可用 `platform.integration.probe-path` 覆盖。
 
 ## 7. 启用清单
 
