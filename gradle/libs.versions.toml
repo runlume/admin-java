@@ -1,14 +1,9 @@
 [versions]
 checkstyle = "13.3.0"
 spring-modulith = "2.1.0"
-# platform-integration-sdk-java 由 Runlume 发布，未进入 Maven Central。
-platform-integration-sdk = "1.3.0"
-# 平台集成 Starter 与 SDK 分开发布，版本各自演进；SDK 由 Starter 传递依赖引入。
 platform-integration-starter = "1.0.6"
 
 [libraries]
-# SDK 版本仍在此声明，供版本对齐与升级检查使用；运行时由 Starter 传递引入。
-platform-integration-sdk-java = { module = "app.runlume.platform:platform-integration-sdk-java", version.ref = "platform-integration-sdk" }
 platform-integration-spring-boot-starter = { module = "app.runlume.platform:platform-integration-spring-boot-starter", version.ref = "platform-integration-starter" }
 spring-modulith-bom = { module = "org.springframework.modulith:spring-modulith-bom", version.ref = "spring-modulith" }
 spring-modulith-api = { module = "org.springframework.modulith:spring-modulith-api" }
